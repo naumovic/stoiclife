@@ -29,7 +29,7 @@ from zoneinfo import ZoneInfo
 
 from build_payload import render_payload
 from states import STATE_DISPLAY
-from trigger_matrix import connect, evaluate, load_config
+from trigger_matrix import Result, connect, evaluate, load_config
 
 TZ = ZoneInfo("Australia/Brisbane")
 REPO_DIR = Path(__file__).resolve().parent
@@ -57,6 +57,26 @@ def clarify_message(state: str, deltas: dict) -> str:
     signal = "; ".join(bits) if bits else "a mixed mind/body signal"
     return (f"🧭 stoiclife: I'm seeing a possible *{display}* pattern today ({signal}). "
             f"Want the full read? Reply *yes* and I'll send the coaching.")
+
+
+def find_held(conn):
+    """Most recent fired message that was held for quiet hours and not yet sent."""
+    return conn.execute(
+        "SELECT * FROM trigger_events "
+        "WHERE held_for_quiet_hours = 1 AND message_sent = 0 AND fired = 1 "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+
+
+def result_from_row(row) -> Result:
+    """Reconstruct a Result from a stored trigger_events row (for held release)."""
+    return Result(
+        date=row["date"], session=row["session"], state=row["state"],
+        physical_summary="(held)", mental_summary="(held)",
+        deltas=json.loads(row["deltas_json"] or "{}"),
+        matched_keywords=(row["matched_keywords"].split(",") if row["matched_keywords"] else []),
+        confidence=row["confidence"], notes="released from overnight quiet-hours hold",
+    )
 
 
 def decide(conn, cfg, target_date, session, write, ignore_quiet_hours=False):
@@ -111,10 +131,20 @@ def emit(conn, cfg, action, result, event_id, detail, dry):
 
     if action == "CLARIFY":
         print()
+        print("# AGENT: send the line below to Mihajlo verbatim. In the journal hook, also send "
+              "the normal coaching reply.")
+        print()
         print(clarify_message(result.state, result.deltas))
         return
 
     if action == "SEND_FULL":
+        rec = (f"printf '%s' \"<your message>\" | python3 {REPO_DIR}/record_coaching.py "
+               f"--event-id {event_id}")
+        print()
+        print("# AGENT: compose the coaching per the payload below (strict format), then record+send it:")
+        print(f"#   {rec}")
+        print("#   If record_coaching rejects (exit!=0), fix the format and retry once, then send "
+              "the message. In the journal hook this REPLACES the normal reply.")
         print()
         print(render_payload(
             conn, cfg, state=result.state, date=result.date, session=result.session,
@@ -138,6 +168,20 @@ def main():
 
     cfg = load_config(Path(args.config))
     conn = connect(cfg["db_path"])
+
+    # Start-of-run sweep (Decision B): once quiet hours have passed, deliver any
+    # message that was held overnight, before evaluating today.
+    if not args.ignore_quiet_hours and not in_quiet_hours(datetime.now(TZ), cfg):
+        held = find_held(conn)
+        if held is not None:
+            res = result_from_row(held)
+            gate = cfg["confidence_gate"]
+            action = "SEND_FULL" if res.confidence >= gate["auto_send"] else "CLARIFY"
+            emit(conn, cfg, action, res, held["id"], "released from overnight quiet-hours hold",
+                 args.dry_run)
+            conn.close()
+            return
+
     action, result, fired, event_id, detail = decide(
         conn, cfg, args.date, args.session, write=not args.dry_run,
         ignore_quiet_hours=args.ignore_quiet_hours,
