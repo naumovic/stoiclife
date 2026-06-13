@@ -36,6 +36,20 @@ CREATE TABLE IF NOT EXISTS trigger_events (
 
 CREATE INDEX IF NOT EXISTS idx_trigger_events_date  ON trigger_events(date);
 CREATE INDEX IF NOT EXISTS idx_trigger_events_state ON trigger_events(state, fired);
+
+-- Phase 3: generated coaching text, linked to the firing event. One event can
+-- have more than one row if a first generation fails validation and is retried.
+CREATE TABLE IF NOT EXISTS trigger_coaching (
+    id                INTEGER PRIMARY KEY,
+    event_id          INTEGER NOT NULL REFERENCES trigger_events(id),
+    generated_at      TEXT NOT NULL,            -- ISO8601, AEST
+    state             TEXT NOT NULL,
+    coaching_text     TEXT NOT NULL,
+    valid             INTEGER NOT NULL,         -- bool: passed strict-format validation
+    validation_errors TEXT                      -- comma-separated, NULL when valid
+);
+
+CREATE INDEX IF NOT EXISTS idx_trigger_coaching_event ON trigger_coaching(event_id);
 """
 
 
@@ -60,7 +74,7 @@ def main() -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA)
         conn.commit()
-    print(f"trigger_events ready in {db_path}")
+    print(f"trigger_events + trigger_coaching ready in {db_path}")
 
 
 if __name__ == "__main__":
