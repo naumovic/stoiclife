@@ -1,2 +1,6 @@
 # Local symlink to the spec in the openclaw workspace (machine-specific)
 /INSTRUCTIONS.md
+
+# Python bytecode
+__pycache__/
+*.pyc
