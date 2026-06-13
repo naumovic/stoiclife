@@ -1,0 +1,34 @@
+{
+  "_comment": "stoiclife Phase 2 config. Thresholds are expressed as deltas vs the rolling baseline, not absolute cutoffs. Tune here, not in code.",
+  "db_path": "~/.openclaw/stoic/stoic_journal.db",
+  "rolling_window_days": 7,
+  "min_baseline_days": 3,
+  "thresholds": {
+    "hrv_high_pct": 8.0,
+    "hrv_drop_pct": -5.0,
+    "rhr_spike_pct": 5.0,
+    "rhr_below_max_pct": 0.0,
+    "sleep_short_min": 360
+  },
+  "mood": {
+    "rattled_max": 6,
+    "fumes_min": 7,
+    "drain_max": 5,
+    "sweet_spot_min": 7
+  },
+  "keywords": {
+    "rattled_but_ready": ["anxious", "anxiety", "chest", "tense", "tight chest", "twitch", "rattled", "overwhelmed", "nervous", "on edge"],
+    "running_on_fumes": ["busy", "moving", "good", "momentum", "lots on", "packed", "rushing", "too many things", "flat out"],
+    "system_drain": ["tired", "frustrated", "drained", "exhausted", "fed up", "stuck", "burnt out", "no energy", "depleted"]
+  },
+  "cooldown_days": {
+    "default": 2,
+    "rattled_but_ready": 2,
+    "running_on_fumes": 2,
+    "system_drain": 2
+  },
+  "quiet_hours": {
+    "start": "21:00",
+    "end": "07:00"
+  }
+}
