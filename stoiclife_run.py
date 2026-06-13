@@ -59,7 +59,7 @@ def clarify_message(state: str, deltas: dict) -> str:
             f"Want the full read? Reply *yes* and I'll send the coaching.")
 
 
-def decide(conn, cfg, target_date, session, write):
+def decide(conn, cfg, target_date, session, write, ignore_quiet_hours=False):
     """Return (action, result, fired, event_id, detail)."""
     gate = cfg["confidence_gate"]
     result, fired, cooldown_skipped, event_id = evaluate(
@@ -90,7 +90,7 @@ def decide(conn, cfg, target_date, session, write):
         action = "SEND_FULL"
 
     # Quiet hours (Decision B): hold, don't drop.
-    if in_quiet_hours(datetime.now(TZ), cfg):
+    if not ignore_quiet_hours and in_quiet_hours(datetime.now(TZ), cfg):
         if write and event_id is not None:
             conn.execute("UPDATE trigger_events SET held_for_quiet_hours = 1 WHERE id = ?",
                          (event_id,))
@@ -132,12 +132,15 @@ def main():
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
     p.add_argument("--dry-run", action="store_true",
                    help="read-only: classify + decide + show the message, write nothing")
+    p.add_argument("--ignore-quiet-hours", action="store_true",
+                   help="testing override: do not hold sends during quiet hours")
     args = p.parse_args()
 
     cfg = load_config(Path(args.config))
     conn = connect(cfg["db_path"])
     action, result, fired, event_id, detail = decide(
-        conn, cfg, args.date, args.session, write=not args.dry_run
+        conn, cfg, args.date, args.session, write=not args.dry_run,
+        ignore_quiet_hours=args.ignore_quiet_hours,
     )
     emit(conn, cfg, action, result, event_id, detail, args.dry_run)
     conn.close()
