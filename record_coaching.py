@@ -75,6 +75,11 @@ def main() -> int:
         (args.event_id, datetime.now(TZ).isoformat(timespec="seconds"),
          ev["state"], text, int(ok), None if ok else "; ".join(errors)),
     )
+    # A valid coaching record means the message is being delivered now — mark the
+    # event sent so re-evaluations the same day don't double-send (dedup signal).
+    if ok:
+        conn.execute("UPDATE trigger_events SET message_sent = 1 WHERE id = ?",
+                     (args.event_id,))
     conn.commit()
     cid = conn.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
     conn.close()

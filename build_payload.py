@@ -89,34 +89,25 @@ def fetch_journal_window(conn, end_date: str) -> list[sqlite3.Row]:
     ).fetchall()
 
 
-def build(event_id: int, cfg: dict) -> str:
-    conn = connect(cfg["db_path"])
-    ev = conn.execute(
-        "SELECT * FROM trigger_events WHERE id = ?", (event_id,)
-    ).fetchone()
-    if ev is None:
-        die(f"trigger_events id {event_id} not found")
+def render_payload(conn, cfg: dict, *, state: str, date: str, session: str,
+                   deltas: dict, matched_keywords: str, confidence) -> str:
+    """Render the full coaching payload from already-classified inputs.
 
-    state = ev["state"]
-    if state not in NON_SILENT:
-        die(f"state '{state}' is silent — no coaching is generated for it")
-    if not ev["fired"]:
-        die(f"event {event_id} did not fire (cooldown/suppressed) — nothing to coach")
-
+    Used both by build() (from a persisted event) and by the orchestrator's
+    dry-run (from an in-memory classification, no DB row required).
+    """
     display = STATE_DISPLAY[state]
     objective = STATE_OBJECTIVE[state]
-    deltas = json.loads(ev["deltas_json"] or "{}")
     prompt_template = (PROMPTS_DIR / f"{state}.md").read_text().strip()
-    journal = fetch_journal_window(conn, ev["date"])
-    conn.close()
+    journal = fetch_journal_window(conn, date)
 
     # --- Context block ---
-    ctx = [f"=== CONTEXT: {display} (date {ev['date']}, {ev['session']}) ===", ""]
+    ctx = [f"=== CONTEXT: {display} (date {date}, {session}) ===", ""]
     ctx.append(f"Detected state: {display}")
     ctx.append(f"Coach's objective: {objective}")
-    if ev["matched_keywords"]:
-        ctx.append(f"Journal keywords matched: {ev['matched_keywords']}")
-    ctx.append(f"Classifier confidence: {ev['confidence']}/100")
+    if matched_keywords:
+        ctx.append(f"Journal keywords matched: {matched_keywords}")
+    ctx.append(f"Classifier confidence: {confidence}/100")
     ctx += ["", "Biometric deltas (today vs 7-day baseline):"]
     ctx += [f"  • {line}" for line in fmt_deltas(deltas)]
     ctx += ["", f"Journal entries (last {JOURNAL_WINDOW_DAYS} days):", ""]
@@ -158,6 +149,26 @@ def build(event_id: int, cfg: dict) -> str:
         "",
         "\n".join(ctx).rstrip(),
     ])
+    return payload
+
+
+def build(event_id: int, cfg: dict) -> str:
+    """CLI entry: load a FIRED event from the DB and render its payload."""
+    conn = connect(cfg["db_path"])
+    ev = conn.execute("SELECT * FROM trigger_events WHERE id = ?", (event_id,)).fetchone()
+    if ev is None:
+        die(f"trigger_events id {event_id} not found")
+    if ev["state"] not in NON_SILENT:
+        die(f"state '{ev['state']}' is silent — no coaching is generated for it")
+    if not ev["fired"]:
+        die(f"event {event_id} did not fire (cooldown/suppressed) — nothing to coach")
+
+    payload = render_payload(
+        conn, cfg, state=ev["state"], date=ev["date"], session=ev["session"],
+        deltas=json.loads(ev["deltas_json"] or "{}"),
+        matched_keywords=ev["matched_keywords"], confidence=ev["confidence"],
+    )
+    conn.close()
     return payload
 
 

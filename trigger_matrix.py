@@ -298,36 +298,45 @@ def write_event(conn, r: Result, fired: bool, cooldown_skipped: bool) -> int:
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
-def run(args) -> Result:
-    cfg = load_config(Path(args.config))
-    conn = connect(cfg["db_path"])
+def resolve_session(entries: dict, session: str | None) -> str:
+    """Default to the latest entry present for the day, else safety-net."""
+    if session:
+        return session
+    return "evening" if "evening" in entries else ("morning" if "morning" in entries else "safety-net")
 
-    today_bio = fetch_biometrics_today(conn, args.date)
-    baseline = fetch_baseline_rows(conn, args.date, cfg["rolling_window_days"])
-    entries = fetch_entries(conn, args.date)
 
-    session = args.session
-    if session is None:
-        # Default to the latest entry present for the day, else safety-net.
-        session = "evening" if "evening" in entries else ("morning" if "morning" in entries else "safety-net")
+def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool = True):
+    """Classify a day, apply cooldown, optionally persist. Reusable by the orchestrator.
 
-    result = classify(cfg, args.date, session, today_bio, baseline, entries)
+    Returns (result, fired, cooldown_skipped, event_id).
+    """
+    today_bio = fetch_biometrics_today(conn, target_date)
+    baseline = fetch_baseline_rows(conn, target_date, cfg["rolling_window_days"])
+    entries = fetch_entries(conn, target_date)
+    session = resolve_session(entries, session)
+
+    result = classify(cfg, target_date, session, today_bio, baseline, entries)
 
     fired = False
     cooldown_skipped = False
     if result.state in NON_SILENT:
-        if cooldown_active(conn, result.state, args.date, cfg):
+        if cooldown_active(conn, result.state, target_date, cfg):
             cooldown_skipped = True
             result.notes = (result.notes + "; " if result.notes else "") + "suppressed by cooldown"
         else:
             fired = True
 
-    if not args.no_write:
-        event_id = write_event(conn, result, fired, cooldown_skipped)
-    else:
-        event_id = None
-    conn.close()
+    event_id = write_event(conn, result, fired, cooldown_skipped) if write else None
+    return result, fired, cooldown_skipped, event_id
 
+
+def run(args) -> Result:
+    cfg = load_config(Path(args.config))
+    conn = connect(cfg["db_path"])
+    result, fired, cooldown_skipped, event_id = evaluate(
+        conn, cfg, args.date, args.session, write=not args.no_write
+    )
+    conn.close()
     _print(result, fired, cooldown_skipped, event_id, args.no_write)
     return result
 

@@ -27,6 +27,10 @@
     "running_on_fumes": 2,
     "system_drain": 2
   },
+  "confidence_gate": {
+    "auto_send": 70,
+    "clarify_min": 40
+  },
   "quiet_hours": {
     "start": "21:00",
     "end": "07:00"
