@@ -35,5 +35,16 @@
   "quiet_hours": {
     "start": "21:00",
     "end": "07:00"
+  },
+  "feedback": {
+    "_comment": "Phase 5 feedback + tuning loop.",
+    "rating_window_hours": 18,
+    "tuning_min_fires": 3,
+    "tuning_useful_ratio": 0.34
+  },
+  "weekend_recap": {
+    "_comment": "Decision F: flag-gated weekend positive recap when the week skews Sweet Spot/stable.",
+    "enabled": true,
+    "min_sweet_spot_ratio": 0.5
   }
 }

@@ -46,11 +46,37 @@ CREATE TABLE IF NOT EXISTS trigger_coaching (
     state             TEXT NOT NULL,
     coaching_text     TEXT NOT NULL,
     valid             INTEGER NOT NULL,         -- bool: passed strict-format validation
-    validation_errors TEXT                      -- comma-separated, NULL when valid
+    validation_errors TEXT,                     -- comma-separated, NULL when valid
+    -- Phase 5 feedback loop: usefulness rating captured when Mihajlo reacts.
+    usefulness        INTEGER,                  -- +1 useful / 0 neutral / -1 not useful / NULL unrated
+    reaction_raw      TEXT,                     -- the raw reply text (👍, a word, a sentence)
+    reacted_at        TEXT                      -- ISO8601, AEST, when the rating landed
 );
 
 CREATE INDEX IF NOT EXISTS idx_trigger_coaching_event ON trigger_coaching(event_id);
 """
+
+# Phase 5 columns added to a trigger_coaching table that predates them (the
+# CREATE above only applies to fresh DBs). Each is added only if missing.
+COLUMN_MIGRATIONS = {
+    "trigger_coaching": [
+        ("usefulness", "INTEGER"),
+        ("reaction_raw", "TEXT"),
+        ("reacted_at", "TEXT"),
+    ],
+}
+
+
+def add_missing_columns(conn: sqlite3.Connection) -> list[str]:
+    """Idempotently ALTER in any Phase 5 columns absent from an existing table."""
+    added = []
+    for table, cols in COLUMN_MIGRATIONS.items():
+        existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in cols:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                added.append(f"{table}.{name}")
+    return added
 
 
 def resolve_db_path() -> Path:
@@ -73,8 +99,11 @@ def main() -> None:
         )
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA)
+        added = add_missing_columns(conn)
         conn.commit()
     print(f"trigger_events + trigger_coaching ready in {db_path}")
+    if added:
+        print(f"migrated columns: {', '.join(added)}")
 
 
 if __name__ == "__main__":
