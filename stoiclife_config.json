@@ -15,7 +15,7 @@
     "rattled_max": 6,
     "fumes_min": 7,
     "drain_max": 5,
-    "sweet_spot_min": 7
+    "sweet_spot_min": 6
   },
   "keywords": {
     "rattled_but_ready": ["anxious", "anxiety", "chest", "tense", "tight chest", "twitch", "rattled", "overwhelmed", "nervous", "on edge"],
