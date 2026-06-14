@@ -3,6 +3,7 @@
   "db_path": "~/.openclaw/stoic/stoic_journal.db",
   "rolling_window_days": 7,
   "min_baseline_days": 3,
+  "biometrics_max_lag_days": 2,
   "thresholds": {
     "hrv_high_pct": 8.0,
     "hrv_drop_pct": -5.0,

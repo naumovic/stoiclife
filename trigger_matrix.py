@@ -27,6 +27,7 @@ import os
 import sqlite3
 import sys
 from dataclasses import dataclass, field
+from datetime import date as date_cls
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -68,21 +69,38 @@ def rolling_avg(rows: list[sqlite3.Row], field_name: str) -> float | None:
 # --------------------------------------------------------------------------- #
 # Data fetch
 # --------------------------------------------------------------------------- #
-def fetch_baseline_rows(conn, target_date: str, window: int) -> list[sqlite3.Row]:
-    """Biometric rows in [target-window, target-1] (excludes today)."""
+def fetch_baseline_rows(conn, anchor_date: str, window: int) -> list[sqlite3.Row]:
+    """Biometric rows in [anchor-window, anchor-1] (excludes the anchor row).
+
+    Anchored on the biometrics row used as "today" (which may lag target_date),
+    so the anchor row is never counted in its own baseline.
+    """
     return conn.execute(
         """
         SELECT * FROM biometrics
         WHERE date < ? AND date >= date(?, ?)
         ORDER BY date
         """,
-        (target_date, target_date, f"-{window} days"),
+        (anchor_date, anchor_date, f"-{window} days"),
     ).fetchall()
 
 
-def fetch_biometrics_today(conn, target_date: str) -> sqlite3.Row | None:
+def fetch_biometrics_today(conn, target_date: str, max_lag_days: int = 0) -> sqlite3.Row | None:
+    """Most-recent biometrics row at or before target_date, within max_lag_days.
+
+    Fitbit dates a night's sleep on the morning you wake and the sync only fetches
+    complete (past) days, so "today" rarely has its own row yet. We accept the
+    freshest row up to max_lag_days old as the current physical reading; older than
+    that, or nothing at all, returns None -> insufficient_data.
+    """
     return conn.execute(
-        "SELECT * FROM biometrics WHERE date = ?", (target_date,)
+        """
+        SELECT * FROM biometrics
+        WHERE date <= ? AND date >= date(?, ?)
+        ORDER BY date DESC
+        LIMIT 1
+        """,
+        (target_date, target_date, f"-{max_lag_days} days"),
     ).fetchone()
 
 
@@ -153,11 +171,14 @@ def classify(cfg: dict, target_date: str, session: str,
     hrv_d = pct_delta(hrv_today, hrv_avg)
     rhr_d = pct_delta(rhr_today, rhr_avg)
     sleep_d = pct_delta(sleep_today, sleep_avg)
+    bio_date = today_bio["date"]
     deltas = {
         "hrv_today_ms": hrv_today, "hrv_avg_ms": hrv_avg, "hrv_delta_pct": hrv_d,
         "rhr_today_bpm": rhr_today, "rhr_avg_bpm": rhr_avg, "rhr_delta_pct": rhr_d,
         "sleep_today_min": sleep_today, "sleep_avg_min": sleep_avg, "sleep_delta_pct": sleep_d,
         "baseline_days": len(baseline),
+        "bio_date": bio_date,
+        "bio_lag_days": (date_cls.fromisoformat(target_date) - date_cls.fromisoformat(bio_date)).days,
     }
 
     # --- Physical flags ---
@@ -310,8 +331,9 @@ def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool
 
     Returns (result, fired, cooldown_skipped, event_id).
     """
-    today_bio = fetch_biometrics_today(conn, target_date)
-    baseline = fetch_baseline_rows(conn, target_date, cfg["rolling_window_days"])
+    today_bio = fetch_biometrics_today(conn, target_date, cfg.get("biometrics_max_lag_days", 0))
+    anchor_date = today_bio["date"] if today_bio is not None else target_date
+    baseline = fetch_baseline_rows(conn, anchor_date, cfg["rolling_window_days"])
     entries = fetch_entries(conn, target_date)
     session = resolve_session(entries, session)
 

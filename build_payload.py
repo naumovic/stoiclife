@@ -108,7 +108,13 @@ def render_payload(conn, cfg: dict, *, state: str, date: str, session: str,
     if matched_keywords:
         ctx.append(f"Journal keywords matched: {matched_keywords}")
     ctx.append(f"Classifier confidence: {confidence}/100")
-    ctx += ["", "Biometric deltas (today vs 7-day baseline):"]
+    bio_date = deltas.get("bio_date")
+    bio_lag = deltas.get("bio_lag_days") or 0
+    bio_label = (
+        f"Biometric deltas (body data from {bio_date}, {bio_lag} day(s) before today, vs 7-day baseline):"
+        if bio_date and bio_lag else "Biometric deltas (today vs 7-day baseline):"
+    )
+    ctx += ["", bio_label]
     ctx += [f"  • {line}" for line in fmt_deltas(deltas)]
     ctx += ["", f"Journal entries (last {JOURNAL_WINDOW_DAYS} days):", ""]
     for r in journal:
