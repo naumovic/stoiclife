@@ -12,7 +12,8 @@ States:
     system_drain       body low (HRV dropping + RHR spiking) + mind low  -> pull the brake
     sweet_spot         body high/stable + mind high                 -> silence
     neutral            within normal band                           -> no trigger
-    insufficient_data  today's biometrics row or journal entry missing -> no trigger
+    insufficient_data  today's biometrics row / journal entry missing, or
+                       the entry exists but mood_score not yet inferred -> no trigger
 
 Usage:
     python3 trigger_matrix.py --date 2026-06-09
@@ -223,11 +224,17 @@ def classify(cfg: dict, target_date: str, session: str,
     matched_fumes = scan_keywords(scan_text, kw["running_on_fumes"])
     matched_drain = scan_keywords(scan_text, kw["system_drain"])
 
-    mental_summary = f"mood {mood} ({mood_session})" if mood is not None else "mood unknown"
+    mental_summary = f"mood {mood} ({mood_session})" if mood is not None else "mood not yet inferred"
 
+    # --- Guard: entry exists but mood_score not yet inferred (Issue-001) ---
+    # The event-driven eval (AGENTS.md step 6) can read the just-saved row before
+    # update_entry.py's mood write is visible, leaving mood_score NULL. Treat that
+    # exactly like a missing biometrics/journal row: bail to insufficient_data (no
+    # fired state, no cooldown) rather than writing a misleading neutral/conf-0 row.
+    # A later eval (re-save or the 11:00 safety-net) reclassifies once mood is set.
     if mood is None:
-        return Result(target_date, session, "neutral", physical_summary,
-                      mental_summary, deltas, notes="no mood_score on entry")
+        return Result(target_date, session, "insufficient_data", physical_summary,
+                      mental_summary, deltas, notes="mood_score not yet inferred")
 
     # --- State decision (mind/body divergence first, then sweet spot) ---
     state = "neutral"
