@@ -125,6 +125,18 @@ def emit(conn, cfg, action, result, event_id, detail, dry):
     print(f"# date={result.date} session={result.session} state={result.state} "
           f"confidence={result.confidence} event_id={event_id} dry_run={dry}")
     print(f"# {detail}")
+    sm = result.deltas.get("sleep_modulator")
+    if sm:
+        print(f"# sleep_modulator: flag={sm['flag']} 7d_score_avg={sm.get('sleep_score_avg')} "
+              f"7d_dur_avg={sm.get('sleep_duration_avg')} bias={sm.get('confidence_bias')} "
+              f"effect=\"{sm.get('effect') or 'no change'}\""
+              + (f" reasons=\"{'; '.join(sm['reasons'])}\"" if sm.get("reasons") else ""))
+    spm = result.deltas.get("spo2_modulator")
+    if spm:
+        print(f"# spo2_modulator: flag={spm['flag']} spo2={spm.get('yesterday_spo2')} "
+              f"7d_avg={spm.get('rolling_avg')} bias={spm.get('confidence_bias')} "
+              f"effect=\"{spm.get('effect') or 'no change'}\""
+              + (f" reasons=\"{'; '.join(spm['reasons'])}\"" if spm.get("reasons") else ""))
 
     if action in ("SILENT", "HOLD_QUIET"):
         return

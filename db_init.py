@@ -56,13 +56,27 @@ CREATE TABLE IF NOT EXISTS trigger_coaching (
 CREATE INDEX IF NOT EXISTS idx_trigger_coaching_event ON trigger_coaching(event_id);
 """
 
-# Phase 5 columns added to a trigger_coaching table that predates them (the
-# CREATE above only applies to fresh DBs). Each is added only if missing.
+# Columns added to tables that predate them (the CREATE above only applies to
+# fresh DBs; `biometrics` is owned by OpenClaw's db_init). Each is added only if
+# missing, so this is safe to run repeatedly.
 COLUMN_MIGRATIONS = {
     "trigger_coaching": [
         ("usefulness", "INTEGER"),
         ("reaction_raw", "TEXT"),
         ("reacted_at", "TEXT"),
+    ],
+    # FEAT-01 Part A: self-computed nightly sleep score (0-100), NULL when a
+    # night lacks stage data. Usually already present on the live DB.
+    # FEAT-01 Part B: blood-oxygen (SpO2) from the Google Health API
+    # `daily-oxygen-saturation` type, computed post-sleep (dated to yesterday).
+    # min/max are the distribution's lower/upper bound percentages; stddev is the
+    # night's variability. All nullable — a night without a reading stays NULL.
+    "biometrics": [
+        ("sleep_score", "INTEGER"),
+        ("spo2_avg", "REAL"),
+        ("spo2_min", "REAL"),
+        ("spo2_max", "REAL"),
+        ("spo2_stddev", "REAL"),
     ],
 }
 

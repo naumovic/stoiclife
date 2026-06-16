@@ -36,6 +36,26 @@
     "start": "21:00",
     "end": "07:00"
   },
+  "sleep_score": {
+    "_comment": "FEAT-01 Part A: self-computed nightly sleep score (0-100). Targets recalibrated 2026-06-16 to Mihajlo's real distribution (avg dur 442, REM ~20%, eff ~0.97) so the score has dynamic range. REM uses straight rem_pct/target. state_bias_points (matrix modulation) is added in Step A3.",
+    "weights": { "duration": 0.50, "rem_vs_light": 0.25, "continuity": 0.25 },
+    "target_duration_min": 450,
+    "target_rem_pct": 0.20,
+    "efficiency_floor": 0.90,
+    "rolling_window_days": 7,
+    "sleep_score_benchmark": 75,
+    "duration_benchmark_min": 400,
+    "state_bias_points": 10
+  },
+  "spo2": {
+    "_comment": "FEAT-01 Part B: blood-oxygen (SpO2) modulator. Source: Google Health daily-oxygen-saturation (not the Fitbit Web API — see B0 findings). Evaluates yesterday's measured SpO2 (the freshest post-sleep value) against a fixed baseline; the 7-day rolling avg (nulls excluded) is surfaced for monitoring/self-calibration. Flag = abs floor OR drop>=threshold below baseline. Wellness signal, not a medical reading. state_bias_points modulates the matrix (Step B3).",
+    "baseline_pct": 96,
+    "normal_range": [94, 97],
+    "drop_flag_below_pct": 94,
+    "drop_threshold_pct": 2,
+    "rolling_window_days": 7,
+    "state_bias_points": 10
+  },
   "feedback": {
     "_comment": "Phase 5 feedback + tuning loop.",
     "rating_window_hours": 18,

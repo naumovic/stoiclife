@@ -141,9 +141,29 @@ def _clamp(v: float, lo: float = 0, hi: float = 100) -> int:
     return int(round(max(lo, min(hi, v))))
 
 
+def _decide_state(moodc, mood, physical_high, physical_drain, physical_fumes,
+                  physical_stable, matched_rattled, matched_fumes, matched_drain):
+    """The mind/body divergence cascade (drain -> fumes -> rattled -> sweet spot).
+
+    Isolated so it can be run twice — once on the base physical flags and once on
+    the sleep-modulated flags — to make the modulator's effect on the *state*
+    explicit and auditable.
+    """
+    if physical_drain and mood < moodc["drain_max"]:
+        return "system_drain", matched_drain
+    if physical_fumes and mood > moodc["fumes_min"]:
+        return "running_on_fumes", matched_fumes
+    if physical_high and mood < moodc["rattled_max"]:
+        return "rattled_but_ready", matched_rattled
+    if (physical_high or physical_stable) and mood > moodc["sweet_spot_min"]:
+        return "sweet_spot", []
+    return "neutral", []
+
+
 def classify(cfg: dict, target_date: str, session: str,
              today_bio: sqlite3.Row | None, baseline: list[sqlite3.Row],
-             entries: dict[str, sqlite3.Row]) -> Result:
+             entries: dict[str, sqlite3.Row], sleep_mod: dict | None = None,
+             spo2_mod: dict | None = None) -> Result:
     th = cfg["thresholds"]
     moodc = cfg["mood"]
     win = cfg["rolling_window_days"]
@@ -194,6 +214,18 @@ def classify(cfg: dict, target_date: str, session: str,
     physical_fumes = hrv_drop or sleep_short
     physical_stable = not hrv_drop and not rhr_spike
 
+    # FEAT-01 modulators: a sustained low 7-day sleep score / duration (Part A)
+    # and/or an SpO2 drop (Part B) are extra "physical depletion" evidence. They
+    # bias the physical side toward low — enabling the fumes path and removing a
+    # "stable" basis for sweet spot — but only shift a borderline call (mood
+    # gating + the confidence gate still decide whether anything fires). RHR-driven
+    # drain keeps its own signature.
+    sleep_low = bool(sleep_mod and sleep_mod.get("flag"))
+    spo2_low = bool(spo2_mod and spo2_mod.get("flag"))
+    depletion = sleep_low or spo2_low
+    physical_fumes_m = physical_fumes or depletion
+    physical_stable_m = physical_stable and not depletion
+
     phys_bits = []
     if hrv_d is not None:
         phys_bits.append(f"HRV {hrv_today}ms ({hrv_d:+.1f}% vs {hrv_avg})")
@@ -237,19 +269,45 @@ def classify(cfg: dict, target_date: str, session: str,
                       mental_summary, deltas, notes="mood_score not yet inferred")
 
     # --- State decision (mind/body divergence first, then sweet spot) ---
-    state = "neutral"
-    matched: list[str] = []
-    if physical_drain and mood < moodc["drain_max"]:
-        state, matched = "system_drain", matched_drain
-    elif physical_fumes and mood > moodc["fumes_min"]:
-        state, matched = "running_on_fumes", matched_fumes
-    elif physical_high and mood < moodc["rattled_max"]:
-        state, matched = "rattled_but_ready", matched_rattled
-    elif (physical_high or physical_stable) and mood > moodc["sweet_spot_min"]:
-        state, matched = "sweet_spot", []
+    # Base (no sleep modulation) vs modulated, so the modulator's effect is explicit.
+    state_base, _ = _decide_state(
+        moodc, mood, physical_high, physical_drain, physical_fumes, physical_stable,
+        matched_rattled, matched_fumes, matched_drain)
+    state, matched = _decide_state(
+        moodc, mood, physical_high, physical_drain, physical_fumes_m, physical_stable_m,
+        matched_rattled, matched_fumes, matched_drain)
 
     confidence = _confidence(state, th, moodc, hrv_d, rhr_d, sleep_today,
                              mood, matched) if state != "neutral" else 0
+
+    # Apply each modulator's configurable confidence bias and record its effect.
+    # Both flags feed the same physical-low cascade above, so a state change (if
+    # any) is their combined result — each active flag notes it. Biases sum.
+    state_changed = state != state_base
+    for mod, flag_on, key in (
+        (sleep_mod, sleep_low, "sleep_modulator"),
+        (spo2_mod, spo2_low, "spo2_modulator"),
+    ):
+        if mod is None:
+            continue
+        bias = 0
+        if flag_on and state != "neutral":
+            pts = mod.get("state_bias_points", 0)
+            if state in ("running_on_fumes", "system_drain"):
+                bias = pts          # strengthen caution states
+            elif state == "sweet_spot":
+                bias = -pts         # weaken a too-rosy read
+        if bias:
+            confidence = _clamp(confidence + bias)
+        effects = []
+        if flag_on and state_changed:
+            effects.append(f"state {state_base}→{state}")
+        if bias:
+            effects.append(f"confidence {bias:+d}")
+        mod["confidence_bias"] = bias
+        mod["effect"] = "; ".join(effects) if effects else (
+            "flag active, non-borderline (no change)" if flag_on else "flag off (no change)")
+        deltas[key] = mod
 
     return Result(target_date, session, state, physical_summary, mental_summary,
                   deltas, matched, confidence)
@@ -344,7 +402,17 @@ def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool
     entries = fetch_entries(conn, target_date)
     session = resolve_session(entries, session)
 
-    result = classify(cfg, target_date, session, today_bio, baseline, entries)
+    # FEAT-01 modulators, anchored on the same biometrics row used as "today":
+    # A3 rolling sleep-score/duration flag + B3 SpO2 drop flag. Deferred imports
+    # avoid a cycle (both modules import connect/load_config from this one).
+    from sleep_score import sleep_modulator
+    from spo2_signal import spo2_modulator
+    have_bio = today_bio is not None
+    sleep_mod = sleep_modulator(conn, cfg, anchor_date) if have_bio else None
+    spo2_mod = spo2_modulator(conn, cfg, anchor_date) if have_bio else None
+
+    result = classify(cfg, target_date, session, today_bio, baseline, entries,
+                      sleep_mod, spo2_mod)
 
     fired = False
     cooldown_skipped = False
@@ -377,6 +445,20 @@ def _print(r: Result, fired, cooldown_skipped, event_id, dry):
     print(f"mental       : {r.mental_summary}")
     if r.matched_keywords:
         print(f"keywords     : {', '.join(r.matched_keywords)}")
+    sm = r.deltas.get("sleep_modulator")
+    if sm:
+        avg_s = sm.get("sleep_score_avg")
+        avg_d = sm.get("sleep_duration_avg")
+        print(f"sleep mod    : flag={sm['flag']}  7d score avg={avg_s}  dur avg={avg_d}  "
+              f"-> {sm.get('effect') or 'no change'}")
+        if sm.get("reasons"):
+            print(f"               reasons: {'; '.join(sm['reasons'])}")
+    spm = r.deltas.get("spo2_modulator")
+    if spm:
+        print(f"spo2 mod     : flag={spm['flag']}  spo2={spm.get('yesterday_spo2')}  "
+              f"7d avg={spm.get('rolling_avg')}  -> {spm.get('effect') or 'no change'}")
+        if spm.get("reasons"):
+            print(f"               reasons: {'; '.join(spm['reasons'])}")
     print(f"confidence   : {r.confidence}")
     print(f"fired        : {fired}" + ("  (cooldown_skipped)" if cooldown_skipped else ""))
     if r.notes:

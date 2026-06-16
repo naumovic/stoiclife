@@ -73,7 +73,34 @@ def fmt_deltas(d: dict) -> list[str]:
         if d.get("sleep_avg_min") is not None:
             sleep += f" (avg {fmt_minutes(d['sleep_avg_min'])})"
         out.append(sleep)
+    sm = d.get("sleep_modulator")
+    if sm and sm.get("flag"):
+        bits = []
+        if sm.get("sleep_score_avg") is not None:
+            bits.append(f"7-day sleep-score avg {sm['sleep_score_avg']} (benchmark {sm.get('score_benchmark')})")
+        if sm.get("sleep_duration_avg") is not None:
+            bits.append(f"7-day sleep-duration avg {fmt_minutes(sm['sleep_duration_avg'])}")
+        out.append("Sustained low sleep: " + "; ".join(bits))
+    spm = d.get("spo2_modulator")
+    if spm and spm.get("flag"):
+        bits = [f"SpO2 {spm['yesterday_spo2']}% overnight"]
+        if spm.get("rolling_avg") is not None:
+            bits.append(f"7-day avg {spm['rolling_avg']}%")
+        bits.append(f"baseline {spm.get('baseline_pct')}%")
+        out.append("Blood-oxygen dip (wellness signal, not a medical reading): "
+                   + "; ".join(bits))
     return out
+
+
+def spo2_guidance(deltas: dict) -> str | None:
+    """Non-diagnostic framing line when an SpO2 dip is contributing to coaching."""
+    spm = deltas.get("spo2_modulator")
+    if not (spm and spm.get("flag")):
+        return None
+    return ("NOTE on the blood-oxygen (SpO2) signal: treat it as a soft wellness nudge, "
+            "NOT a medical reading. Do not use diagnostic or alarming language. Only if it "
+            "were persistently low would you gently suggest checking with a professional — "
+            "otherwise frame it as one more reason to protect rest/recovery today.")
 
 
 def fetch_journal_window(conn, end_date: str) -> list[sqlite3.Row]:
@@ -150,6 +177,7 @@ def render_payload(conn, cfg: dict, *, state: str, date: str, session: str,
         "Ground every line in the specific numbers and journal content below — name "
         "the actual deltas and reference what the user actually wrote. Do not "
         "generalise.",
+        *( [ "", guidance ] if (guidance := spo2_guidance(deltas)) else [] ),
         "",
         fmt_block,
         "",
