@@ -66,5 +66,16 @@
     "_comment": "Decision F: flag-gated weekend positive recap when the week skews Sweet Spot/stable.",
     "enabled": true,
     "min_sweet_spot_ratio": 0.5
+  },
+  "status_signal": {
+    "_comment": "FEAT-02: appends a health-checked status line to the silent-day Stoic coach reply so silence is legible. 🟢 all ok = eval ran + biometrics fresh + last night's sleep_score present; ⚠️ heads up otherwise (never a false 'all ok'). spo2_soft_check keeps SpO2 informational — NULL is normal some nights and must not downgrade to a warning. ok_emoji deliberately differs from the ✅ 'Stoic entry saved' tick.",
+    "enabled": true,
+    "ok_emoji": "🟢",
+    "warn_emoji": "⚠️",
+    "ok_line": "*stoiclife:* all ok",
+    "warn_line": "*stoiclife:* heads up —",
+    "require_biometrics": true,
+    "require_sleep_score": true,
+    "spo2_soft_check": true
   }
 }

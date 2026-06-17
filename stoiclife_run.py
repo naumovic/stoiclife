@@ -29,7 +29,14 @@ from zoneinfo import ZoneInfo
 
 from build_payload import render_payload
 from states import STATE_DISPLAY
-from trigger_matrix import Result, connect, evaluate, load_config
+from status import health_check, render_health_lines, resolve_status_line
+from trigger_matrix import (
+    Result,
+    connect,
+    evaluate,
+    fetch_biometrics_today,
+    load_config,
+)
 
 TZ = ZoneInfo("Australia/Brisbane")
 REPO_DIR = Path(__file__).resolve().parent
@@ -120,7 +127,8 @@ def decide(conn, cfg, target_date, session, write, ignore_quiet_hours=False):
     return action, result, fired, event_id, f"confidence {conf}"
 
 
-def emit(conn, cfg, action, result, event_id, detail, dry):
+def emit(conn, cfg, action, result, event_id, detail, dry, health=None,
+         status_line=None, signal="none"):
     print(f"STOICLIFE_ACTION: {action}")
     print(f"# date={result.date} session={result.session} state={result.state} "
           f"confidence={result.confidence} event_id={event_id} dry_run={dry}")
@@ -137,6 +145,24 @@ def emit(conn, cfg, action, result, event_id, detail, dry):
               f"7d_avg={spm.get('rolling_avg')} bias={spm.get('confidence_bias')} "
               f"effect=\"{spm.get('effect') or 'no change'}\""
               + (f" reasons=\"{'; '.join(spm['reasons'])}\"" if spm.get("reasons") else ""))
+
+    # FEAT-02 Step 1: surface the pipeline-health breakdown in --dry-run. Nothing
+    # is sent or written yet — the status line itself lands in Step 2.
+    if dry and health is not None:
+        for line in render_health_lines(health):
+            print(line)
+        # FEAT-02 Step 3: surface the resolved status for any date — the exact
+        # line (when any) is printed as the STOICLIFE_STATUS directive below.
+        print(f"# status_signal: {signal}"
+              + ("" if status_line else " (no line appended on this eval)"))
+
+    # FEAT-02 Step 2: the in-turn status line to append to the silent-day coach
+    # reply (resolve_status_line gates this to SILENT morning/evening evals).
+    if status_line is not None:
+        print()
+        print("# AGENT: append the STOICLIFE_STATUS line below verbatim as the final "
+              "line of the normal Stoic coach reply.")
+        print(f"STOICLIFE_STATUS: {status_line}")
 
     if action in ("SILENT", "HOLD_QUIET"):
         return
@@ -198,7 +224,22 @@ def main():
         conn, cfg, args.date, args.session, write=not args.dry_run,
         ignore_quiet_hours=args.ignore_quiet_hours,
     )
-    emit(conn, cfg, action, result, event_id, detail, args.dry_run)
+    # FEAT-02 Step 1: certify pipeline health for this eval (reuse the matrix's
+    # lag-resolved "today" biometrics row). Exposed for the dry-run breakdown;
+    # the in-turn status line is wired in Step 2.
+    today_bio = fetch_biometrics_today(conn, args.date, cfg.get("biometrics_max_lag_days", 0))
+    health = health_check(cfg, result, today_bio)
+
+    # FEAT-02 Step 2: resolve the in-turn status line (SILENT morning/evening only)
+    # and record what was emitted on this eval's row (all_ok | warning | none).
+    signal, status_line = resolve_status_line(cfg, action, args.session, health)
+    if not args.dry_run and event_id is not None:
+        conn.execute("UPDATE trigger_events SET status_signal = ? WHERE id = ?",
+                     (signal, event_id))
+        conn.commit()
+
+    emit(conn, cfg, action, result, event_id, detail, args.dry_run,
+         health=health, status_line=status_line, signal=signal)
     conn.close()
 
 

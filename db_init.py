@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS trigger_events (
     message_sent        INTEGER NOT NULL DEFAULT 0,  -- bool: set in Phase 4
     held_for_quiet_hours INTEGER NOT NULL DEFAULT 0, -- bool: set in Phase 4
     usefulness          INTEGER,                  -- nullable: set in Phase 5 feedback loop
+    status_signal       TEXT,                     -- FEAT-02: status line emitted on a silent day (all_ok | warning | none); per-eval audit only
     notes               TEXT
 );
 
@@ -64,6 +65,11 @@ COLUMN_MIGRATIONS = {
         ("usefulness", "INTEGER"),
         ("reaction_raw", "TEXT"),
         ("reacted_at", "TEXT"),
+    ],
+    # FEAT-02: per-eval audit of the status line emitted on a silent day
+    # (all_ok | warning | none). Audit-only — no weekly surfacing planned.
+    "trigger_events": [
+        ("status_signal", "TEXT"),
     ],
     # FEAT-01 Part A: self-computed nightly sleep score (0-100), NULL when a
     # night lacks stage data. Usually already present on the live DB.
