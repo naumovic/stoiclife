@@ -97,11 +97,15 @@ def spo2_modulator(conn, cfg: dict, anchor_date: str) -> dict | None:
 
     reasons = []
     if today_spo2 is not None:
+        # Round the gap to 1 decimal before comparing: SpO2 values carry one
+        # decimal, and raw float subtraction (e.g. 95.5 - 94.7 = 0.79999…) would
+        # otherwise drop a night that is exactly at the threshold by accident.
+        drop = round(baseline - today_spo2, 1)
         if today_spo2 < floor:
             reasons.append(f"SpO2 {today_spo2}% < floor {floor}%")
-        elif baseline - today_spo2 >= drop_th:
+        elif drop >= drop_th:
             reasons.append(
-                f"SpO2 {today_spo2}% is {round(baseline - today_spo2, 1)}pp below "
+                f"SpO2 {today_spo2}% is {drop}pp below "
                 f"baseline {baseline}% (>= {drop_th}pp drop)"
             )
 

@@ -48,11 +48,11 @@
     "state_bias_points": 10
   },
   "spo2": {
-    "_comment": "FEAT-01 Part B: blood-oxygen (SpO2) modulator. Source: Google Health daily-oxygen-saturation (not the Fitbit Web API — see B0 findings). Evaluates yesterday's measured SpO2 (the freshest post-sleep value) against a fixed baseline; the 7-day rolling avg (nulls excluded) is surfaced for monitoring/self-calibration. Flag = abs floor OR drop>=threshold below baseline. Wellness signal, not a medical reading. state_bias_points modulates the matrix (Step B3).",
-    "baseline_pct": 96,
+    "_comment": "FEAT-01 Part B: blood-oxygen (SpO2) modulator. Source: Google Health daily-oxygen-saturation (not the Fitbit Web API — see B0 findings). Evaluates yesterday's measured SpO2 (the freshest post-sleep value) against a fixed baseline; the 7-day rolling avg (nulls excluded) is surfaced for monitoring/self-calibration. Flag = abs floor OR drop>=threshold below baseline. Wellness signal, not a medical reading. state_bias_points modulates the matrix (Step B3). Issue-02 (2026-06-17): static baseline kept (SpO2 is floor-like, not relative like HRV — a drifting baseline would mask a sustained decline) but recalibrated to Mihajlo's actual avg (~95.6) with a tightened drop; prior 96/2/94 fired 0/16 nights (baseline at top of his 94.2–96.5 range, relative arm collapsed onto the 94 floor). Now 95.5/0.7/92 fires on the low-night cluster (<=94.8, ~4/16); floor 92 is the rare genuine-concern net. Drift is visible in the rolling avg (weekly review) — nudge baseline if his norm shifts.",
+    "baseline_pct": 95.5,
     "normal_range": [94, 97],
-    "drop_flag_below_pct": 94,
-    "drop_threshold_pct": 2,
+    "drop_flag_below_pct": 92,
+    "drop_threshold_pct": 0.7,
     "rolling_window_days": 7,
     "state_bias_points": 10
   },
