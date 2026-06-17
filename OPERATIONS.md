@@ -68,6 +68,35 @@ stoiclife safety-net check. Run this and act on the result, nothing else.
 Never invent data. No preamble, sign-off, or commentary. If anything errors, reply HEARTBEAT_OK.
 ```
 
+## Derived sleep score (FEAT-01-Issue-01)
+
+`biometrics.sleep_score` is **derived by stoiclife**, not synced — fitbit-sync
+stores the raw stage data (`sleep_duration_min`, `deep/light/rem_min`,
+`minutes_awake`) and leaves `sleep_score` NULL. The score is an opinionated index
+(weights/targets in `stoiclife_config.json`, tuned to Mihajlo), so its
+computation stays here; only its *trigger* lives in the sync pipeline.
+
+The derive runs as the last step of **both** Fitbit sync crons, right after the
+raw rows land:
+
+```
+python3 ~/projects/stoiclife/sleep_score.py --recent 4
+```
+
+- `--recent N` recomputes each of the last N nights' **own** per-night score
+  (no aggregation — each date stores its single-night value). The 7-day rolling
+  average the matrix modulator uses is computed at read time, not stored.
+- The window is 4 days to match the catch-up's 4-day reconciliation window, so a
+  night whose stage data the COALESCE upsert backfilled late gets re-scored.
+  Idempotent (overwrites), so running it at both 07:00 and 10:00 is safe.
+- **10:00 is load-bearing** (must populate today's score before the 11:00
+  safety-net reads it; retry + WhatsApp alert on failure). **07:00 is
+  best-effort** (heals early, stays quiet on failure — 10:00 backstops it).
+
+No coupling: fitbit-sync knows nothing about stoiclife; the cron command string
+is the integration glue. Retune → re-backfill all history with `sleep_score.py
+--all`.
+
 ## Manual / test invocations
 
 ```

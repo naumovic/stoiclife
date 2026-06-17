@@ -29,10 +29,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Mapping
+from zoneinfo import ZoneInfo
 
 from trigger_matrix import DEFAULT_CONFIG, connect, load_config
+
+TZ = ZoneInfo("Australia/Brisbane")
 
 # Stage minutes that must all be present for a night to be scored. deep/light
 # aren't in the formula but their absence marks a non-stages night to skip.
@@ -168,6 +172,9 @@ def main() -> None:
     sel = p.add_mutually_exclusive_group(required=True)
     sel.add_argument("--date", help="(re)compute a single night YYYY-MM-DD")
     sel.add_argument("--start", help="backfill range start YYYY-MM-DD (needs --end)")
+    sel.add_argument("--recent", type=int, metavar="N",
+                     help="(re)compute the last N days ending today (AEST) — the "
+                          "self-healing window run after each Fitbit sync")
     sel.add_argument("--all", action="store_true", help="(re)compute every row")
     p.add_argument("--end", help="backfill range end YYYY-MM-DD (with --start)")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -180,6 +187,17 @@ def main() -> None:
 
     if args.start and not args.end:
         p.error("--start requires --end")
+
+    # --recent N is sugar for a trailing [today-(N-1) .. today] range (AEST), so the
+    # post-sync cron can run a static command with no shell date arithmetic. Each
+    # night's score depends only on its own row; the window just re-derives any
+    # recent night whose raw stage data the sync's COALESCE upsert filled in late.
+    if args.recent is not None:
+        if args.recent < 1:
+            p.error("--recent N must be >= 1")
+        today = datetime.now(TZ).date()
+        args.end = today.isoformat()
+        args.start = (today - timedelta(days=args.recent - 1)).isoformat()
 
     cfg = load_config(Path(args.config))
     conn = connect(cfg["db_path"])
