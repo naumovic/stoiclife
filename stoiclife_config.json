@@ -67,6 +67,13 @@
     "enabled": true,
     "min_sweet_spot_ratio": 0.5
   },
+  "manual_mood": {
+    "_comment": "FEAT-03: lets Mihajlo set mood inline at the start of a journal entry (e.g. 'evening review: mood 7 — ...'), overriding inference. Parsed in save_entry.py (Step 2): ^mood\\s*:?\\s*(\\d{1,2})\\b, case-insensitive, start-anchored. Valid 1-10 => mood_score=N, mood_source='manual', token stripped; out-of-range/malformed/absent => fall back to inference (validate, don't clamp). Manual always wins — update_entry.py must never overwrite a manual score.",
+    "enabled": true,
+    "keyword": "mood",
+    "min": 1,
+    "max": 10
+  },
   "status_signal": {
     "_comment": "FEAT-02: appends a health-checked status line to the silent-day Stoic coach reply so silence is legible. 🟢 all ok = eval ran + biometrics fresh + last night's sleep_score present; ⚠️ heads up otherwise (never a false 'all ok'). spo2_soft_check keeps SpO2 informational — NULL is normal some nights and must not downgrade to a warning. ok_emoji deliberately differs from the ✅ 'Stoic entry saved' tick.",
     "enabled": true,

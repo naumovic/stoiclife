@@ -71,6 +71,14 @@ COLUMN_MIGRATIONS = {
     "trigger_events": [
         ("status_signal", "TEXT"),
     ],
+    # FEAT-03: manual mood entry. `mood_source` records whether mood_score was
+    # set by inline parsing of the entry ("manual") or by the agent ("inferred").
+    # DEFAULT 'inferred' backfills existing rows on ADD COLUMN and gives new rows
+    # a safe value until save_entry.py sets it explicitly (Step 2). journal_entries
+    # is owned by OpenClaw's db_init; stoiclife only adds this column.
+    "journal_entries": [
+        ("mood_source", "TEXT DEFAULT 'inferred'"),
+    ],
     # FEAT-01 Part A: self-computed nightly sleep score (0-100), NULL when a
     # night lacks stage data. Usually already present on the live DB.
     # FEAT-01 Part B: blood-oxygen (SpO2) from the Google Health API
