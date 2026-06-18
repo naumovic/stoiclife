@@ -97,6 +97,58 @@ No coupling: fitbit-sync knows nothing about stoiclife; the cron command string
 is the integration glue. Retune → re-backfill all history with `sleep_score.py
 --all`.
 
+## Fitbit token re-consent (`invalid_grant`)
+
+The whole pipeline reads `biometrics`, which the **fitbit-sync** project fills via
+the Google Health API. When its OAuth token dies, every sync fails and the matrix
+falls back to stale/yesterday data (or `insufficient_data`), and today's
+`sleep_score` can't be derived. The canonical procedure lives in
+`~/projects/fitbit-sync/RUNBOOK.md` §"Re-consent OAuth"; the operator steps are
+duplicated here because stoiclife depends on it.
+
+**Symptom (seen 2026-06-18):** both Fitbit sync crons WhatsApp a failure alert and
+`~/projects/fitbit-sync/sync.log` shows:
+```
+ERROR sync: sync failed for <date>: ('invalid_grant: Token has been expired or revoked.', ...)
+```
+With the cron hardening (below), the sleep-score step no longer fires its own alert
+in this case — a missing today-row is attributed to the sync, not to sleep_score.
+
+**Root cause:** the OAuth client expires refresh tokens ~7 days after consent while
+in *Testing* status. **Published to Production 2026-06-18** to stop the weekly
+expiry; if `invalid_grant` still recurs, just re-consent:
+
+```bash
+# 1. Generate the consent URL (writes a one-shot PKCE state file)
+~/projects/fitbit-sync/.venv/bin/python ~/projects/fitbit-sync/auth.py login-url
+# 2. Open the printed URL in ANY browser, approve all three scopes.
+#    The final redirect to localhost:8400 fails to load — EXPECTED. Copy that
+#    failing URL (it contains ?code=...) from the address bar.
+# 3. Exchange it for a fresh token:
+~/projects/fitbit-sync/.venv/bin/python ~/projects/fitbit-sync/auth.py login-code --response-url '<pasted URL>'
+# 4. Verify (all 3 data types should be HTTP 200):
+~/projects/fitbit-sync/.venv/bin/python ~/projects/fitbit-sync/auth.py smoke
+```
+
+**Then heal the data** the outage skipped (so the matrix + sleep_score catch up):
+```bash
+~/projects/fitbit-sync/.venv/bin/python ~/projects/fitbit-sync/sync.py --backfill <first-missed> <today>
+python3 ~/projects/stoiclife/sleep_score.py --recent 4
+```
+Confirm today's row + score landed:
+```bash
+sqlite3 ~/.openclaw/stoic/stoic_journal.db \
+  "SELECT date, hrv_rmssd_ms, sleep_duration_min, sleep_score FROM biometrics ORDER BY date DESC LIMIT 4;"
+```
+
+**Cron hardening (10:00 catch-up, id `697feda9…`):** the sleep-score step is now
+judged purely by `sleep_score.py`'s own exit code — exit 0 is success even if it
+wrote fewer than 4 scores or today's score is absent (a missing today-row is the
+sync's failure, already alerted). It only alerts if the command itself exits
+non-zero. The sync-failure alert now names `invalid_grant` explicitly so the cause
+is obvious. The cron message is Gateway-stored, not git — edit with
+`openclaw cron edit 697feda9-050e-46f9-8ae6-31acc9fb4aec --message "<text>"`.
+
 ## Manual / test invocations
 
 ```
