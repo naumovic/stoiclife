@@ -228,7 +228,7 @@ def main():
     # lag-resolved "today" biometrics row). Exposed for the dry-run breakdown;
     # the in-turn status line is wired in Step 2.
     today_bio = fetch_biometrics_today(conn, args.date, cfg.get("biometrics_max_lag_days", 0))
-    health = health_check(cfg, result, today_bio)
+    health = health_check(cfg, result, today_bio, now=datetime.now(TZ))
 
     # FEAT-02 Step 2: resolve the in-turn status line (SILENT morning/evening only)
     # and record what was emitted on this eval's row (all_ok | warning | none).

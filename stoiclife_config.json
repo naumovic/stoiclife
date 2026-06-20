@@ -75,7 +75,7 @@
     "max": 10
   },
   "status_signal": {
-    "_comment": "FEAT-02: appends a health-checked status line to the silent-day Stoic coach reply so silence is legible. 🟢 all ok = eval ran + biometrics fresh + last night's sleep_score present; ⚠️ heads up otherwise (never a false 'all ok'). spo2_soft_check keeps SpO2 informational — NULL is normal some nights and must not downgrade to a warning. ok_emoji deliberately differs from the ✅ 'Stoic entry saved' tick.",
+    "_comment": "FEAT-02: appends a health-checked status line to the silent-day Stoic coach reply so silence is legible. 🟢 all ok = eval ran + biometrics fresh + last night's sleep_score present; ⚠️ heads up otherwise (never a false 'all ok'). spo2_soft_check keeps SpO2 informational — NULL is normal some nights and must not downgrade to a warning. ok_emoji deliberately differs from the ✅ 'Stoic entry saved' tick. GRACE WINDOW (added 2026-06-20): on today's row (lag 0) a NULL sleep_score before sleep_score_grace_until is treated as 'pending', not ⚠️ — the 07:00 primary sync usually beats Fitbit's overnight upload, so the score isn't derived until the 10:00 catch-up sync; a journal entry in that gap was drawing a false warning. Cutoff sits between the 10:00 catch-up and the 11:00 safety-net, so a genuinely stuck recompute still warns at/after 11:00 and every evening. sleep_grace_enabled=false restores strict behaviour.",
     "enabled": true,
     "ok_emoji": "🟢",
     "warn_emoji": "⚠️",
@@ -83,6 +83,8 @@
     "warn_line": "*stoiclife:* heads up —",
     "require_biometrics": true,
     "require_sleep_score": true,
-    "spo2_soft_check": true
+    "spo2_soft_check": true,
+    "sleep_grace_enabled": true,
+    "sleep_score_grace_until": "10:30"
   }
 }

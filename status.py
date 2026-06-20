@@ -11,7 +11,9 @@ Hard checks — all must pass for `ok`:
                        reason = whichever input is missing: biometrics, journal, or mood)
   biometrics_fresh     a biometrics row exists within biometrics_max_lag_days (the matrix's
                        own lag logic — we read the row it resolved as "today")
-  sleep_score_present  last night's sleep_score is non-NULL (FEAT-01-Issue-01 failure mode)
+  sleep_score_present  last night's sleep_score is non-NULL (FEAT-01-Issue-01 failure mode);
+                       on today's still-filling row a NULL score is "pending", not a warning,
+                       until the morning grace cutoff (see _in_sleep_grace)
 
 Soft check — informational, never blocks `ok` (SpO2 is legitimately NULL some nights, so a
 missing value is noted but does NOT cry wolf):
@@ -22,12 +24,37 @@ orchestrator (Step 2) and surfaces it in --dry-run.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 
 def _check(ok: bool, detail: str, hard: bool) -> dict:
     return {"ok": ok, "detail": detail, "hard": hard}
 
 
-def health_check(cfg: dict, result, today_bio) -> dict:
+def _in_sleep_grace(sig: dict, now: datetime | None) -> bool:
+    """True while a NULL sleep_score on *today's* row is still expected, not broken.
+
+    The 07:00 primary Fitbit sync usually beats Fitbit's overnight cloud upload, so
+    it writes today's biometrics row with no sleep stages yet — sleep_score.py has
+    nothing to derive from and leaves the score NULL until the 10:00 catch-up sync
+    fills the stages (the FEAT-01-Issue-01 timing race). Before
+    `status_signal.sleep_score_grace_until` we treat that NULL as pending rather
+    than warning; after the cutoff (so for the 11:00 safety-net and every evening
+    eval) a NULL score is a genuine failure again.
+    """
+    if now is None or not sig.get("sleep_grace_enabled", True):
+        return False
+    cutoff = sig.get("sleep_score_grace_until")
+    if not cutoff:
+        return False
+    try:
+        cutoff_t = datetime.strptime(cutoff, "%H:%M").time()
+    except ValueError:
+        return False
+    return now.time() < cutoff_t
+
+
+def health_check(cfg: dict, result, today_bio, now: datetime | None = None) -> dict:
     """Return {ok, reasons, checks} certifying pipeline health for `result`.
 
     Args:
@@ -36,6 +63,8 @@ def health_check(cfg: dict, result, today_bio) -> dict:
         today_bio: the biometrics row the matrix used as "today" (None if none fell
                    within biometrics_max_lag_days). Reusing the matrix's lag-resolved
                    row keeps freshness here consistent with what classification saw.
+        now:       eval wall-clock time (AEST); enables the morning grace window for a
+                   not-yet-computed sleep_score. None disables grace (always strict).
     """
     sig = cfg.get("status_signal", {})
     require_bio = sig.get("require_biometrics", True)
@@ -54,22 +83,29 @@ def health_check(cfg: dict, result, today_bio) -> dict:
     )
 
     # --- Hard: biometrics fresh (the matrix's lag-resolved row) ---
+    lag = result.deltas.get("bio_lag_days")
     if today_bio is None:
         bio_ok, bio_detail = False, f"no biometrics row within {max_lag}d"
     else:
-        lag = result.deltas.get("bio_lag_days")
         bio_ok = True
         bio_detail = f"bio {today_bio['date']} " + (f"(lag {lag}d)" if lag else "(today)")
     checks["biometrics_fresh"] = _check(bio_ok, bio_detail, hard=require_bio)
 
     # --- Hard: last night's sleep_score computed (FEAT-01-Issue-01) ---
+    # Grace: a NULL sleep_score on *today's* still-filling row (lag 0/None) before the
+    # morning cutoff is expected (the 10:00 catch-up sync hasn't run yet), not broken —
+    # so an early journal entry doesn't draw a false ⚠️. Past the cutoff, or on a
+    # lag>=1 row that should already carry a complete night, NULL warns. See
+    # _in_sleep_grace.
     score = today_bio["sleep_score"] if today_bio is not None else None
-    sleep_ok = score is not None
-    checks["sleep_score_present"] = _check(
-        sleep_ok,
-        f"sleep_score={score}" if sleep_ok else "sleep score not yet computed",
-        hard=require_sleep,
-    )
+    if score is not None:
+        sleep_ok, sleep_detail = True, f"sleep_score={score}"
+    elif today_bio is not None and not lag and _in_sleep_grace(sig, now):
+        sleep_ok = True
+        sleep_detail = f"sleep_score pending (grace until {sig.get('sleep_score_grace_until')})"
+    else:
+        sleep_ok, sleep_detail = False, "sleep score not yet computed"
+    checks["sleep_score_present"] = _check(sleep_ok, sleep_detail, hard=require_sleep)
 
     # --- Soft: SpO2 fresh (NULL is normal — never blocks ok) ---
     spo2 = today_bio["spo2_avg"] if today_bio is not None else None
