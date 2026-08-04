@@ -32,6 +32,8 @@
     "auto_send": 70,
     "clarify_min": 40
   },
+  "coaching_sessions": ["safety-net", "evening"],
+  "_coaching_sessions_comment": "FEAT-04: which sessions may FIRE a coaching push. Morning is deliberately excluded — at 07:30 the day's Fitbit data is still stale (the device's overnight upload + the 10:00 catch-up sync haven't landed), so a morning coach reply would advise off yesterday's body. A morning eval still runs and logs an audit row, but with fired=0 so cooldown_active() stays clear and the 11:00 safety-net can fire on fresh data. The 11:00 sweep (freshest Fitbit) and the evening entry are the coaching moments.",
   "quiet_hours": {
     "start": "21:00",
     "end": "07:00"
@@ -85,6 +87,8 @@
     "require_sleep_score": true,
     "spo2_soft_check": true,
     "sleep_grace_enabled": true,
-    "sleep_score_grace_until": "10:30"
+    "sleep_score_grace_until": "10:30",
+    "in_turn_sessions": ["evening"],
+    "_in_turn_sessions_comment": "FEAT-04: which in-turn sessions may append the 🟢/⚠️ status line. Morning was dropped (was morning+evening) so the 07:30 morning-prep reply carries ZERO stoiclife output — no coaching push (see coaching_sessions) and no status line. Evening keeps it. The 11:00 safety-net is out-of-turn and never appended a line."
   }
 }

@@ -129,6 +129,8 @@ def health_check(cfg: dict, result, today_bio, now: datetime | None = None) -> d
 
 # In-turn sessions: the status line rides the journal-hook coach reply only.
 # safety-net (the 11:00 out-of-turn cron) never emits a line — FEAT-02 is in-turn only.
+# Default kept for back-compat; the live list comes from status_signal.in_turn_sessions
+# (FEAT-04 dropped morning so the 07:30 reply carries zero stoiclife output).
 IN_TURN_SESSIONS = ("morning", "evening")
 
 
@@ -146,7 +148,8 @@ def resolve_status_line(cfg: dict, action: str, session: str, health: dict):
     sig = cfg.get("status_signal", {})
     if not sig.get("enabled", True):
         return "none", None
-    if action != "SILENT" or session not in IN_TURN_SESSIONS:
+    in_turn = sig.get("in_turn_sessions", IN_TURN_SESSIONS)
+    if action != "SILENT" or session not in in_turn:
         return "none", None
     if health["ok"]:
         return "all_ok", f"{sig.get('ok_emoji', '🟢')} {sig.get('ok_line', '*stoiclife:* all ok')}"

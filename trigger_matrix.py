@@ -417,7 +417,17 @@ def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool
     fired = False
     cooldown_skipped = False
     if result.state in NON_SILENT:
-        if cooldown_active(conn, result.state, target_date, cfg):
+        coaching_sessions = cfg.get("coaching_sessions")
+        if coaching_sessions is not None and session not in coaching_sessions:
+            # FEAT-04: evaluate-only session (morning). The day's Fitbit data is still
+            # stale at 07:30 — the device's overnight upload and the 10:00 catch-up sync
+            # haven't landed — so we classify and log the row but never fire. Crucially
+            # fired stays 0 so cooldown_active() reads clear and the 11:00 safety-net can
+            # still fire on fresh data (a fired=1 morning row would cooldown-block it).
+            result.notes = (result.notes + "; " if result.notes else "") + (
+                f"evaluate-only session ({session}); coaching deferred to "
+                f"{', '.join(coaching_sessions)}")
+        elif cooldown_active(conn, result.state, target_date, cfg):
             cooldown_skipped = True
             result.notes = (result.notes + "; " if result.notes else "") + "suppressed by cooldown"
         else:
