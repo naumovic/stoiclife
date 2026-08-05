@@ -35,8 +35,10 @@
   "coaching_sessions": ["safety-net", "evening"],
   "_coaching_sessions_comment": "FEAT-04: which sessions may FIRE a coaching push. Morning is deliberately excluded — at 07:30 the day's Fitbit data is still stale (the device's overnight upload + the 10:00 catch-up sync haven't landed), so a morning coach reply would advise off yesterday's body. A morning eval still runs and logs an audit row, but with fired=0 so cooldown_active() stays clear and the 11:00 safety-net can fire on fresh data. The 11:00 sweep (freshest Fitbit) and the evening entry are the coaching moments.",
   "quiet_hours": {
+    "_comment": "FEAT-04: held_max_age_days bounds the quiet-hours hold-and-release (Decision B: deliver once, the next morning). The start-of-run sweep releases a hold only if its date is within this many days and expires anything older (never delivers month-late coaching); combined with deliver-once marking in stoiclife_run.py (mark_hold_released), this prevents an un-cleared CLARIFY hold from wedging the morning + 11:00 sweep — the 2026-06-20 → 08-05 outage.",
     "start": "21:00",
-    "end": "07:00"
+    "end": "07:00",
+    "held_max_age_days": 2
   },
   "sleep_score": {
     "_comment": "FEAT-01 Part A: self-computed nightly sleep score (0-100). Targets recalibrated 2026-06-16 to Mihajlo's real distribution (avg dur 442, REM ~20%, eff ~0.97) so the score has dynamic range. REM uses straight rem_pct/target. state_bias_points (matrix modulation) is added in Step A3.",

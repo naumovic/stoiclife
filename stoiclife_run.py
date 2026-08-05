@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -66,13 +67,63 @@ def clarify_message(state: str, deltas: dict) -> str:
             f"Want the full read? Reply *yes* and I'll send the coaching.")
 
 
-def find_held(conn):
-    """Most recent fired message that was held for quiet hours and not yet sent."""
+def find_held(conn, target_date: str, max_age_days: int):
+    """Most recent fired, held, not-yet-sent message still within the release window.
+
+    A quiet-hours hold is meant to be delivered the *next* morning (Decision B), so a
+    hold whose date is older than max_age_days is stale: it is skipped here (and cleared
+    by expire_stale_holds) rather than delivered days/weeks late.
+    """
     return conn.execute(
         "SELECT * FROM trigger_events "
         "WHERE held_for_quiet_hours = 1 AND message_sent = 0 AND fired = 1 "
-        "ORDER BY id DESC LIMIT 1"
+        "  AND date >= date(?, ?) "
+        "ORDER BY id DESC LIMIT 1",
+        (target_date, f"-{max_age_days} days"),
     ).fetchone()
+
+
+def count_stale_holds(conn, target_date: str, max_age_days: int) -> int:
+    """Held-but-undelivered messages older than the release window."""
+    return conn.execute(
+        "SELECT COUNT(*) AS n FROM trigger_events "
+        "WHERE held_for_quiet_hours = 1 AND message_sent = 0 AND fired = 1 "
+        "  AND date < date(?, ?)",
+        (target_date, f"-{max_age_days} days"),
+    ).fetchone()["n"]
+
+
+def expire_stale_holds(conn, target_date: str, max_age_days: int) -> int:
+    """Clear the held flag on holds older than the release window (never delivered).
+
+    Keeps stale holds from lingering as held=1 and from being delivered late if the
+    window is later widened. Returns the number expired.
+    """
+    note = f"hold expired: stale >{max_age_days}d, never delivered"
+    cur = conn.execute(
+        "UPDATE trigger_events SET held_for_quiet_hours = 0, "
+        "  notes = COALESCE(notes || '; ', '') || ? "
+        "WHERE held_for_quiet_hours = 1 AND message_sent = 0 AND fired = 1 "
+        "  AND date < date(?, ?)",
+        (note, target_date, f"-{max_age_days} days"),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def mark_hold_released(conn, event_id: int) -> None:
+    """Clear the held flag when a hold is released to the agent (deliver-once).
+
+    Load-bearing fix for the FEAT-04 wedge: a CLARIFY hold has no downstream
+    record_coaching step to set message_sent=1, so without this it is re-found on every
+    run and the start-of-run sweep never reaches today's eval (the 2026-06-20 → 08-05
+    morning/safety-net outage). SEND_FULL is cleared here too — a hold is delivered once,
+    the next morning, not retried for days; a failed generation is dropped, consistent
+    with the normal fired path (which also doesn't retry). Stale-expiry is the backstop.
+    """
+    conn.execute("UPDATE trigger_events SET held_for_quiet_hours = 0 WHERE id = ?",
+                 (event_id,))
+    conn.commit()
 
 
 def result_from_row(row) -> Result:
@@ -208,13 +259,28 @@ def main():
     conn = connect(cfg["db_path"])
 
     # Start-of-run sweep (Decision B): once quiet hours have passed, deliver any
-    # message that was held overnight, before evaluating today.
+    # message that was held overnight, before evaluating today. A hold is released
+    # exactly once (the next morning) and marked handled on release so it can't
+    # re-wedge the sweep; holds older than held_max_age_days are expired, never
+    # delivered late. See INSTRUCTIONS.md FEAT-04. (Progress notes go to stderr so the
+    # STOICLIFE_ACTION-first-line stdout contract is preserved.)
     if not args.ignore_quiet_hours and not in_quiet_hours(datetime.now(TZ), cfg):
-        held = find_held(conn)
+        max_age = cfg.get("quiet_hours", {}).get("held_max_age_days", 2)
+        n_stale = count_stale_holds(conn, args.date, max_age)
+        if n_stale:
+            if not args.dry_run:
+                expire_stale_holds(conn, args.date, max_age)
+            print(f"# {'would expire' if args.dry_run else 'expired'} {n_stale} stale held "
+                  f"message(s) (>{max_age}d, never delivered)", file=sys.stderr)
+        held = find_held(conn, args.date, max_age)
         if held is not None:
             res = result_from_row(held)
             gate = cfg["confidence_gate"]
             action = "SEND_FULL" if res.confidence >= gate["auto_send"] else "CLARIFY"
+            # Deliver-once: mark the hold handled BEFORE emitting so it is never
+            # re-found next run (CLARIFY has no record_coaching step to clear it).
+            if not args.dry_run:
+                mark_hold_released(conn, held["id"])
             emit(conn, cfg, action, res, held["id"], "released from overnight quiet-hours hold",
                  args.dry_run)
             conn.close()
