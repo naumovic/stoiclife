@@ -77,8 +77,11 @@ def main() -> int:
     )
     # A valid coaching record means the message is being delivered now — mark the
     # event sent so re-evaluations the same day don't double-send (dedup signal).
+    # Delivery also discharges any quiet-hours hold on the event: clear the flag so
+    # it doesn't linger as a phantom "still held" row after the message went out.
     if ok:
-        conn.execute("UPDATE trigger_events SET message_sent = 1 WHERE id = ?",
+        conn.execute("UPDATE trigger_events "
+                     "SET message_sent = 1, held_for_quiet_hours = 0 WHERE id = ?",
                      (args.event_id,))
     conn.commit()
     cid = conn.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
