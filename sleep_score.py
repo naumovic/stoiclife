@@ -32,11 +32,10 @@ import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Mapping
-from zoneinfo import ZoneInfo
 
 from trigger_matrix import DEFAULT_CONFIG, connect, load_config
 
-TZ = ZoneInfo("Australia/Brisbane")
+from _tz import TZ  # active zone: home, or the trip zone while travel-mode is on
 
 # Stage minutes that must all be present for a night to be scored. deep/light
 # aren't in the formula but their absence marks a non-stages night to skip.

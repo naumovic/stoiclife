@@ -21,11 +21,10 @@ import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from coaching_format import validate
 
-TZ = ZoneInfo("Australia/Brisbane")
+from _tz import TZ  # active zone: home, or the trip zone while travel-mode is on
 REPO_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = REPO_DIR / "stoiclife_config.json"
 

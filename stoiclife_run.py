@@ -26,7 +26,6 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from build_payload import render_payload
 from states import STATE_DISPLAY
@@ -39,7 +38,7 @@ from trigger_matrix import (
     load_config,
 )
 
-TZ = ZoneInfo("Australia/Brisbane")
+from _tz import TZ  # active zone: home, or the trip zone while travel-mode is on
 REPO_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = REPO_DIR / "stoiclife_config.json"
 
@@ -244,8 +243,12 @@ def emit(conn, cfg, action, result, event_id, detail, dry, health=None,
 
 def main():
     p = argparse.ArgumentParser(description="stoiclife proactive delivery orchestrator")
-    p.add_argument("--date", default=datetime.now(TZ).strftime("%Y-%m-%d"),
-                   help="defaults to today (AEST)")
+    p.add_argument("--date", default=None,
+                   help="defaults to the --entry-id row's date, else today in the active tz")
+    p.add_argument("--entry-id", type=int, default=None,
+                   help="evaluate the day this journal entry belongs to (preferred for the "
+                        "in-turn hook: save_entry.py back-dates late replies, so the row's "
+                        "date is authoritative and the wall clock is not)")
     p.add_argument("--session", choices=["morning", "evening", "safety-net"],
                    default="safety-net")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
@@ -257,6 +260,23 @@ def main():
 
     cfg = load_config(Path(args.config))
     conn = connect(cfg["db_path"])
+
+    # Resolve the day being evaluated. The wall clock is the wrong answer whenever
+    # save_entry.py back-dated the reply — an evening review answered after midnight
+    # belongs to the previous day, but a wall-clock --date would evaluate the new one,
+    # find no journal entry, and emit a false "heads up" warning (trigger_events ids 80
+    # and 86 are exactly this). The saved row knows its own date, so prefer it.
+    if args.date is None:
+        if args.entry_id is not None:
+            row = conn.execute(
+                "SELECT date FROM journal_entries WHERE id = ?", (args.entry_id,)
+            ).fetchone()
+            if row is None:
+                print(f"error: no journal entry with id {args.entry_id}", file=sys.stderr)
+                sys.exit(2)   # main() has no return-code contract; exit directly
+            args.date = row["date"]
+        else:
+            args.date = datetime.now(TZ).strftime("%Y-%m-%d")
 
     # Start-of-run sweep (Decision B): once quiet hours have passed, deliver any
     # message that was held overnight, before evaluating today. A hold is released
