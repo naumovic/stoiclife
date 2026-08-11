@@ -33,6 +33,7 @@ from datetime import datetime
 from pathlib import Path
 
 from _tz import TZ  # active zone: home, or the trip zone while travel-mode is on
+from status import is_late_morning  # leaf module (stdlib only) — no import cycle
 REPO_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = REPO_DIR / "stoiclife_config.json"
 
@@ -390,11 +391,17 @@ def resolve_session(entries: dict, session: str | None) -> str:
     return "evening" if "evening" in entries else ("morning" if "morning" in entries else "safety-net")
 
 
-def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool = True):
+def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool = True,
+             now: datetime | None = None):
     """Classify a day, apply cooldown, optionally persist. Reusable by the orchestrator.
+
+    `now` (default: the active-tz wall clock) only decides whether a morning entry is
+    late enough to count as the safety-net run — see status.is_late_morning.
 
     Returns (result, fired, cooldown_skipped, event_id).
     """
+    if now is None:
+        now = datetime.now(TZ)
     today_bio = fetch_biometrics_today(conn, target_date, cfg.get("biometrics_max_lag_days", 0))
     anchor_date = today_bio["date"] if today_bio is not None else target_date
     baseline = fetch_baseline_rows(conn, anchor_date, cfg["rolling_window_days"])
@@ -417,7 +424,16 @@ def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool
     cooldown_skipped = False
     if result.state in NON_SILENT:
         coaching_sessions = cfg.get("coaching_sessions")
-        if coaching_sessions is not None and session not in coaching_sessions:
+        # FEAT-05: past the 11:00 boundary a morning entry has the same fresh data the
+        # safety-net would have had, and the sweep that was supposed to cover it has
+        # already run and missed (no entry existed yet). Treat it as that run.
+        late_morning = is_late_morning(cfg, session, target_date, now)
+        if late_morning:
+            result.notes = (result.notes + "; " if result.notes else "") + (
+                f"late morning entry (after {cfg.get('late_morning', {}).get('cutoff')}); "
+                f"evaluated as the safety-net run")
+        if coaching_sessions is not None and session not in coaching_sessions \
+                and not late_morning:
             # FEAT-04: evaluate-only session (morning). The day's Fitbit data is still
             # stale at 07:30 — the device's overnight upload and the 10:00 catch-up sync
             # haven't landed — so we classify and log the row but never fire. Crucially

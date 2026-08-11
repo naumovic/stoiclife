@@ -54,6 +54,37 @@ def _in_sleep_grace(sig: dict, now: datetime | None) -> bool:
     return now.time() < cutoff_t
 
 
+def is_late_morning(cfg: dict, session: str, target_date: str | None,
+                    now: datetime | None) -> bool:
+    """True when a morning entry lands after the 11:00 safety-net has already run.
+
+    FEAT-04 defers morning coaching because at 07:30 the day's Fitbit data is stale;
+    the 11:00 safety-net then fires it on fresh data. But a morning-prep entry written
+    *after* 11:00 falls through both windows: the sweep already ran, found no journal
+    entry and logged insufficient_data, and it does not run again — so nothing was ever
+    delivered for that day (the 2026-08-11 miss).
+
+    The cutoff is the safety-net hour, which is exactly the "has the 10:00 catch-up sync
+    landed" boundary. Past it a morning entry has safety-net-grade data, so it IS the
+    safety-net run: coaching may fire (trigger_matrix.evaluate) and the status line may
+    be appended (resolve_status_line). Only ever for today — a back-dated morning entry's
+    windows are long gone and we do not coach retroactively.
+    """
+    lm = cfg.get("late_morning", {})
+    if session != "morning" or now is None or not lm.get("enabled", True):
+        return False
+    if target_date is None or now.strftime("%Y-%m-%d") != target_date:
+        return False
+    cutoff = lm.get("cutoff")
+    if not cutoff:
+        return False
+    try:
+        cutoff_t = datetime.strptime(cutoff, "%H:%M").time()
+    except ValueError:
+        return False
+    return now.time() >= cutoff_t
+
+
 def health_check(cfg: dict, result, today_bio, now: datetime | None = None) -> dict:
     """Return {ok, reasons, checks} certifying pipeline health for `result`.
 
@@ -134,22 +165,29 @@ def health_check(cfg: dict, result, today_bio, now: datetime | None = None) -> d
 IN_TURN_SESSIONS = ("morning", "evening")
 
 
-def resolve_status_line(cfg: dict, action: str, session: str, health: dict):
+def resolve_status_line(cfg: dict, action: str, session: str, health: dict,
+                        target_date: str | None = None, now: datetime | None = None):
     """FEAT-02: the status line to append to a SILENT in-turn coach reply.
 
     Returns (signal, line):
       signal: 'all_ok' | 'warning' | 'none'  — recorded on trigger_events.status_signal.
       line:   the WhatsApp text to append, or None when nothing is appended.
 
-    Appended ONLY on a SILENT in-turn (morning/evening) eval — never on a fired day
-    (SEND_FULL / CLARIFY / HOLD_QUIET) and never out-of-turn (safety-net). The all-ok
-    emoji comes from config and is deliberately not the ✅ "Stoic entry saved" tick.
+    Appended ONLY on a SILENT in-turn (evening, per in_turn_sessions) eval — never on a
+    fired day (SEND_FULL / CLARIFY / HOLD_QUIET) and never out-of-turn (safety-net). The
+    all-ok emoji comes from config and is deliberately not the ✅ "Stoic entry saved" tick.
+
+    FEAT-05 widens this to a late morning entry (see is_late_morning): once the 11:00
+    boundary has passed the entry is the safety-net run, so its silence needs to be as
+    legible as the evening's. An early (07:30) morning prep still carries zero output,
+    which is what FEAT-04's exclusion was actually protecting.
     """
     sig = cfg.get("status_signal", {})
     if not sig.get("enabled", True):
         return "none", None
     in_turn = sig.get("in_turn_sessions", IN_TURN_SESSIONS)
-    if action != "SILENT" or session not in in_turn:
+    eligible = session in in_turn or is_late_morning(cfg, session, target_date, now)
+    if action != "SILENT" or not eligible:
         return "none", None
     if health["ok"]:
         return "all_ok", f"{sig.get('ok_emoji', '🟢')} {sig.get('ok_line', '*stoiclife:* all ok')}"

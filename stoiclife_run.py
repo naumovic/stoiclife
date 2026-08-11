@@ -316,9 +316,10 @@ def main():
     today_bio = fetch_biometrics_today(conn, args.date, cfg.get("biometrics_max_lag_days", 0))
     health = health_check(cfg, result, today_bio, now=datetime.now(TZ))
 
-    # FEAT-02 Step 2: resolve the in-turn status line (SILENT morning/evening only)
-    # and record what was emitted on this eval's row (all_ok | warning | none).
-    signal, status_line = resolve_status_line(cfg, action, args.session, health)
+    # FEAT-02 Step 2: resolve the in-turn status line (SILENT evening, plus a FEAT-05
+    # late morning) and record what was emitted on this eval's row (all_ok|warning|none).
+    signal, status_line = resolve_status_line(cfg, action, args.session, health,
+                                              target_date=args.date, now=datetime.now(TZ))
     if not args.dry_run and event_id is not None:
         conn.execute("UPDATE trigger_events SET status_signal = ? WHERE id = ?",
                      (signal, event_id))

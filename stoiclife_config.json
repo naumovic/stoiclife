@@ -33,7 +33,12 @@
     "clarify_min": 40
   },
   "coaching_sessions": ["safety-net", "evening"],
-  "_coaching_sessions_comment": "FEAT-04: which sessions may FIRE a coaching push. Morning is deliberately excluded — at 07:30 the day's Fitbit data is still stale (the device's overnight upload + the 10:00 catch-up sync haven't landed), so a morning coach reply would advise off yesterday's body. A morning eval still runs and logs an audit row, but with fired=0 so cooldown_active() stays clear and the 11:00 safety-net can fire on fresh data. The 11:00 sweep (freshest Fitbit) and the evening entry are the coaching moments.",
+  "_coaching_sessions_comment": "FEAT-04: which sessions may FIRE a coaching push. Morning is deliberately excluded — at 07:30 the day's Fitbit data is still stale (the device's overnight upload + the 10:00 catch-up sync haven't landed), so a morning coach reply would advise off yesterday's body. A morning eval still runs and logs an audit row, but with fired=0 so cooldown_active() stays clear and the 11:00 safety-net can fire on fresh data. The 11:00 sweep (freshest Fitbit) and the evening entry are the coaching moments. FEAT-05 exception: see late_morning — a morning entry written after that sweep has already run fires immediately, because the window it would defer to has closed.",
+  "late_morning": {
+    "_comment": "FEAT-05: rescues the day when a morning-prep entry is written AFTER the 11:00 safety-net has already run. That sweep found no journal entry and logged insufficient_data, and it never runs again — so under FEAT-04's morning exclusion alone the entry deferred coaching to a window that had already closed and nothing was ever delivered (the 2026-08-11 miss). Past this cutoff a morning entry is treated as the safety-net run: coaching may fire and the 🟢/⚠️ status line may be appended. The cutoff is the safety-net hour precisely because that is the 'has the 10:00 catch-up sync landed' boundary — the data-freshness worry behind the morning exclusion is gone by then. Applies to TODAY only (a back-dated morning entry is never coached retroactively) and never to an early 07:30 prep, which still carries zero stoiclife output. Set enabled=false to restore strict FEAT-04 behaviour.",
+    "enabled": true,
+    "cutoff": "11:00"
+  },
   "quiet_hours": {
     "_comment": "FEAT-04: held_max_age_days bounds the quiet-hours hold-and-release (Decision B: deliver once, the next morning). The start-of-run sweep releases a hold only if its date is within this many days and expires anything older (never delivers month-late coaching); combined with deliver-once marking in stoiclife_run.py (mark_hold_released), this prevents an un-cleared CLARIFY hold from wedging the morning + 11:00 sweep — the 2026-06-20 → 08-05 outage.",
     "start": "21:00",
@@ -91,6 +96,6 @@
     "sleep_grace_enabled": true,
     "sleep_score_grace_until": "10:30",
     "in_turn_sessions": ["evening"],
-    "_in_turn_sessions_comment": "FEAT-04: which in-turn sessions may append the 🟢/⚠️ status line. Morning was dropped (was morning+evening) so the 07:30 morning-prep reply carries ZERO stoiclife output — no coaching push (see coaching_sessions) and no status line. Evening keeps it. The 11:00 safety-net is out-of-turn and never appended a line."
+    "_in_turn_sessions_comment": "FEAT-04: which in-turn sessions may append the 🟢/⚠️ status line. Morning was dropped (was morning+evening) so the 07:30 morning-prep reply carries ZERO stoiclife output — no coaching push (see coaching_sessions) and no status line. Evening keeps it. The 11:00 safety-net is out-of-turn and never appended a line. FEAT-05 exception: a morning entry past late_morning.cutoff appends the line anyway (it is the safety-net run, so its silence must be legible); early morning preps are unaffected."
   }
 }
