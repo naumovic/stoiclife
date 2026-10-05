@@ -42,11 +42,13 @@ Rule: update this file after every completed step and commit it with the code. S
     - `--channel` on `stoiclife_run.py`, `build_payload.py`, `record_coaching.py`, `coaching_format.py`, `weekly_review.py`. The runner passes it into the printed `record_coaching.py` command, so the validator checks the right bold. On Telegram, a message using WhatsApp bold is rejected.
     - The coach hook (`coach-workspace/AGENTS.md` step 6) now passes `--channel telegram`. This is live on the coach's next turn, since the workspace is this checkout, and it only affects the Telegram coach.
     - Tests: new `tests/test_channel_fmt.py` (19 cases). All 52 pass (19 + 19 + 14). WhatsApp output was **byte-identical** before and after for `weekly_review.py`, `build_payload.py --event-id 226` and a `stoiclife_run.py` dry run.
-  - [ ] New coach crons → telegram account `coach`, to 8917837483: morning 07:30 (Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`) and evening 20:30 (`evening-prompt.sh`)
+  - [x] New coach crons → telegram account `coach`, to 8917837483: morning 07:30 (Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`) and evening 20:30 (`evening-prompt.sh`)
     - [x] `coach_morning.sh` (this repo): the brief's Health Snapshot + morning prep, without System/Calendar. Output checked by hand (2026-10-06).
     - [x] `STOICLIFE_SKIP_PROMPT_STATE=1` guard in `coach_morning.sh` and the workspace `evening-prompt.sh`, so test runs don't write `state.json`. Gotcha: running `evening-prompt.sh` by hand **does** set awaiting-evening. It was done once by mistake at 00:37 on 2026-10-06 and reverted (stray line left in `stoic.log`).
     - Design: **command payloads** (`--command`, no model turn; stdout delivered verbatim via announce, `NO_REPLY` = silent). This is deterministic, free, and can't paraphrase the prompt. Created **disabled**: hard cutover, so they're enabled in Phase 4 when the WhatsApp ones are disabled. travel-mode retimes every cron-kind job, disabled ones included, so the new jobs need no change there.
-    - [ ] Approval → `cron add` ×2 → manual delivery test (one-shot copies with the skip env)
+    - [x] Approved and created 2026-10-06 00:40, **disabled**: `Coach Morning (07:30)` `73c880ac` (`coach_morning.sh`) and `Coach Evening Review (20:30)` `7e8a7edd` (`evening-prompt.sh`). Both: agent `coach`, command payload, announce telegram account `coach` → 8917837483, tz Australia/Brisbane. Note: `cron list` hides disabled jobs, so check `cron_jobs` in `openclaw.sqlite` or use `--all`.
+    - [x] Delivery test: one-shot `--at +1m --delete-after-run` copies with `--command-env STOICLIFE_SKIP_PROMPT_STATE=1`. Both `ok` / `delivered` in `cron_run_logs`. Gateway log: `telegram outbound send ok accountId=coach chatId=8917837483` (messageId 6, 7). `state.json` stayed idle and the one-shots removed themselves.
+    - Finding for the capture-flow step: command-cron deliveries are **not mirrored** into `agent:coach:main`, so the coach's transcript doesn't contain the prompt. Prefixed replies and `state.json` attribution are unaffected, but a bare reply arrives with no prompt context. Decide during capture testing whether that matters (options: coach AGENTS.md reads `state.json` on an unprefixed reply, or switch to agentTurn into a fixed session key).
   - [ ] Weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`
   - [ ] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp)
   - [ ] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays
@@ -136,4 +138,4 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 2: waiting on Mihajlo's approval for the two disabled coach command crons (candidates in the session / commit message). Then do a one-shot delivery test to the coach bot with `STOICLIFE_SKIP_PROMPT_STATE=1`.
+Phase 3 step 3: weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`. First read the Weekly Digest cron (`a1fb56f7`) and `weekly-digest.sh` to split the Stoic part from the rest. Same pattern as step 2: new jobs created disabled, diff → approval → one-shot test.
