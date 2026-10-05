@@ -49,7 +49,15 @@ Rule: update this file after every completed step and commit it with the code. S
     - [x] Approved and created 2026-10-06 00:40, **disabled**: `Coach Morning (07:30)` `73c880ac` (`coach_morning.sh`) and `Coach Evening Review (20:30)` `7e8a7edd` (`evening-prompt.sh`). Both: agent `coach`, command payload, announce telegram account `coach` → 8917837483, tz Australia/Brisbane. Note: `cron list` hides disabled jobs, so check `cron_jobs` in `openclaw.sqlite` or use `--all`.
     - [x] Delivery test: one-shot `--at +1m --delete-after-run` copies with `--command-env STOICLIFE_SKIP_PROMPT_STATE=1`. Both `ok` / `delivered` in `cron_run_logs`. Gateway log: `telegram outbound send ok accountId=coach chatId=8917837483` (messageId 6, 7). `state.json` stayed idle and the one-shots removed themselves.
     - Finding for the capture-flow step: command-cron deliveries are **not mirrored** into `agent:coach:main`, so the coach's transcript doesn't contain the prompt. Prefixed replies and `state.json` attribution are unaffected, but a bare reply arrives with no prompt context. Decide during capture testing whether that matters (options: coach AGENTS.md reads `state.json` on an unprefixed reply, or switch to agentTurn into a fixed session key).
-  - [ ] Weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`
+  - [x] Weekly-review section → coach cron; stoiclife Safety-Net → agent `coach` (2026-10-06, created **disabled**)
+    - `Coach Weekly Review (Sun 08:00)` `5dcb0e1a`: command payload `weekly_review.py --section both --channel telegram`. Empty output → `NO_REPLY` (silent). Script failure → `exit 1` (recorded as an error, not silence). `weekly_review.py` is read-only.
+    - `Coach Safety-Net (11:00)` `700b6841`: agentTurn on agent `coach` (Sonnet), isolated. Same instructions as `74b9acbe` but with `--channel telegram` on `stoiclife_run.py` + `record_coaching.py`, and "use exactly the bold markup the payload shows" instead of a hardcoded `*Observation:*`.
+    - Tests (one-shot copies, all `ok`):
+      - weekly: delivered (Telegram msg 8), Telegram bold.
+      - safety-net on today's gate with `--dry-run`: `HEARTBEAT_OK` → `not-delivered`, as intended.
+      - full path via `build_payload.py --event-id 226` + `coaching_format.py --channel telegram` (no record): Sonnet composed a valid `**Observation:**` message, delivered (msg 9), 44 s.
+      - DB unchanged: `trigger_events` max id 232, `trigger_coaching` 19, `message_sent` 19.
+    - Testing gotcha: a past firing date dry-runs as SILENT (cooldown), so the SEND_FULL path can only be exercised through `build_payload.py --event-id N`.
   - [ ] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp)
   - [ ] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays
   - [ ] Capture flow (`morning prep:` / `evening review:`, `mood N`, 👍/👎) works in the coach chat; check whether Telegram reactions reach the agent
@@ -138,4 +146,4 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 3: weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`. First read the Weekly Digest cron (`a1fb56f7`) and `weekly-digest.sh` to split the Stoic part from the rest. Same pattern as step 2: new jobs created disabled, diff → approval → one-shot test.
+Phase 3 step 4: put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp). The flag stays **on** (sections still sent on WhatsApp) until the Phase 4 cutover. Design the flag so one place flips it and rollback is a one-liner.
