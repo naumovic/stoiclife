@@ -10,12 +10,17 @@ Rule: update this file after every completed step and commit it with the code. S
   - [x] `docs/PROGRESS.md` (this file)
   - [x] `CLAUDE.md` pointer in stoiclife + `~/.openclaw/workspace/CLAUDE.md`
 - [x] **Phase 0: recon (read-only)** (findings below)
-- [ ] **Phase 1: `coach` agent**
+- [x] **Phase 1: `coach` agent** (one heartbeat check pending)
   - [x] Draft `agents.list` (`main` default unchanged + `coach`, workspace `~/.openclaw/workspace-coach`); check every key against the 2026.6.8 docs
   - [x] Build the coach workspace: SOUL/AGENTS distilled from `workspace/TOOLS.md` "Stoic Journal" + `AGENTS.md` Stoic section, plus `stoic_knowledge.md` and the journal prompts
   - [x] Tool policy: keep `exec` (scripts need it); deny browser/web/write/edit etc.; no MEMORY.md; decide about Supermemory
   - [x] Per-agent model (Sonnet via the API-key profile)
-  - [ ] Show the config diff → approval → apply → `config validate` (no restart without asking)
+  - [x] Show the config diff → approval → apply → `config validate` (no restart without asking)
+    - Applied 2026-10-05 23:37 (backup `~/.openclaw/openclaw.json.bak-coach-20261005-233717`). The gateway **hot-reloaded `agents.list` with no restart** (log: `config hot reload applied (agents.list)`).
+    - Verified: `agents list` shows `main` (default) + `coach` (🧭 Coach, Sonnet, workspace `coach-workspace`).
+    - Verified: an undelivered test turn (`openclaw agent --agent coach --session-key agent:coach:phase1-test`) reported exactly `read, exec, process, message, session_status`, gave the coach persona, and answered a sleep question with figures matching `biometrics` (2026-10-05: 407 min, HRV 36.4, RHR 70).
+    - Verified: Telegram default + WhatsApp still connected, WhatsApp traffic flowing. No BOOTSTRAP/template files were seeded into the workspace.
+  - [ ] Heartbeat is main-only. Last main heartbeat 23:23 (ok). **Check after the next one (~00:23):** `openclaw system heartbeat last` is newer, and `~/.openclaw/agents/coach/sessions/sessions.json` has no heartbeat/main key (only `agent:coach:phase1-test`).
 - [ ] **Phase 2: Telegram bot**
   - [ ] Mihajlo creates the bot in @BotFather
   - [ ] Token → `~/.openclaw/.env` `TELEGRAM_COACH_BOT_TOKEN`, referenced as `${TELEGRAM_COACH_BOT_TOKEN}`
@@ -103,4 +108,5 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 1: `coach-workspace/` built; config candidate (`agents.list`: main + heartbeat, coach) validates. **Waiting for Mihajlo's OK to write the live `openclaw.json`** (hybrid reload may restart the gateway). Then: back up → write → `is-active` + log → `agents list` → coach test turn → check heartbeat is main-only → Ewok WhatsApp + Travelboard still answer.
+1. Do the pending Phase 1 heartbeat check (see the Phase 1 checklist).
+2. Wait for Mihajlo's go-ahead on Phase 2. He creates the bot in @BotFather and puts the token in `~/.openclaw/.env` as `TELEGRAM_COACH_BOT_TOKEN=…` himself, so the token never passes through chat. Then draft the `channels.telegram.accounts` + binding candidate, validate it, show the diff, and ask. Note: the Telegram account change may need a real restart rather than a hot reload; check the docs and ask first.
