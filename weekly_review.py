@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """stoiclife Phase 5 — weekly review + flag-gated weekend Sweet Spot recap.
 
-Emits WhatsApp-formatted plain text (no markdown tables/headers) summarising the
+Emits plain text (no markdown tables/headers), formatted for `--channel`, summarising the
 week's triggers and, when the week skews Sweet Spot/stable, a short positive
 recap (Decision F, behind the `weekend_recap.enabled` config flag). It does NOT
 call an LLM and sends nothing itself — it prints to stdout for the existing
@@ -11,6 +11,7 @@ Usage:
     python3 weekly_review.py --section both           # default: review + recap
     python3 weekly_review.py --section weekly
     python3 weekly_review.py --section recap --asof 2026-06-14 --days 7
+    python3 weekly_review.py --channel telegram         # **bold** instead of *bold*
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from datetime import date as date_cls
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import channel_fmt
 from states import STATE_DISPLAY
 
 from _tz import TZ  # active zone: home, or the trip zone while travel-mode is on
@@ -218,7 +220,10 @@ def main() -> int:
     p.add_argument("--days", type=int, default=7)
     p.add_argument("--asof", default=datetime.now(TZ).strftime("%Y-%m-%d"))
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
+    p.add_argument("--channel", choices=channel_fmt.CHANNELS, default=None,
+                   help=f"default: ${channel_fmt.ENV_VAR}, else {channel_fmt.DEFAULT_CHANNEL}")
     args = p.parse_args()
+    channel = channel_fmt.resolve(args.channel)
 
     cfg = json.loads(Path(args.config).read_text())
     conn = connect(cfg["db_path"])
@@ -235,7 +240,7 @@ def main() -> int:
 
     out = "\n\n".join(b for b in blocks if b)
     if out:
-        print(out)
+        print(channel_fmt.render(out, channel))
     return 0
 
 

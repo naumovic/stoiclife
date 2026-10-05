@@ -3,8 +3,9 @@
 
 Deterministic brain that decides whether to interrupt and how. It does NOT call
 an LLM or send anything itself; it prints a machine-readable directive that the
-OpenClaw cron's agentTurn acts on (Ewok generates the coaching and the framework
-announces it to WhatsApp; HEARTBEAT_OK = stay silent).
+OpenClaw cron's agentTurn acts on (the agent generates the coaching and the framework
+announces it; HEARTBEAT_OK = stay silent). `--channel` (default $STOICLIFE_CHANNEL, else
+whatsapp) picks the text format for the channel that will deliver it.
 
 Flow: matrix -> cooldown -> confidence gate -> quiet hours -> dedup.
 
@@ -27,6 +28,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import channel_fmt
 from build_payload import render_payload
 from states import STATE_DISPLAY
 from status import health_check, render_health_lines, resolve_status_line
@@ -178,7 +180,7 @@ def decide(conn, cfg, target_date, session, write, ignore_quiet_hours=False):
 
 
 def emit(conn, cfg, action, result, event_id, detail, dry, health=None,
-         status_line=None, signal="none"):
+         status_line=None, signal="none", channel=channel_fmt.DEFAULT_CHANNEL):
     print(f"STOICLIFE_ACTION: {action}")
     print(f"# date={result.date} session={result.session} state={result.state} "
           f"confidence={result.confidence} event_id={event_id} dry_run={dry}")
@@ -222,12 +224,12 @@ def emit(conn, cfg, action, result, event_id, detail, dry, health=None,
         print("# AGENT: send the line below to Mihajlo verbatim. In the journal hook, also send "
               "the normal coaching reply.")
         print()
-        print(clarify_message(result.state, result.deltas))
+        print(channel_fmt.render(clarify_message(result.state, result.deltas), channel))
         return
 
     if action == "SEND_FULL":
         rec = (f"printf '%s' \"<your message>\" | python3 {REPO_DIR}/record_coaching.py "
-               f"--event-id {event_id}")
+               f"--event-id {event_id} --channel {channel}")
         print()
         print("# AGENT: compose the coaching per the payload below (strict format), then record+send it:")
         print(f"#   {rec}")
@@ -237,7 +239,7 @@ def emit(conn, cfg, action, result, event_id, detail, dry, health=None,
         print(render_payload(
             conn, cfg, state=result.state, date=result.date, session=result.session,
             deltas=result.deltas, matched_keywords=",".join(result.matched_keywords),
-            confidence=result.confidence,
+            confidence=result.confidence, channel=channel,
         ))
 
 
@@ -256,7 +258,11 @@ def main():
                    help="read-only: classify + decide + show the message, write nothing")
     p.add_argument("--ignore-quiet-hours", action="store_true",
                    help="testing override: do not hold sends during quiet hours")
+    p.add_argument("--channel", choices=channel_fmt.CHANNELS, default=None,
+                   help=f"text format for the delivering channel "
+                        f"(default: ${channel_fmt.ENV_VAR}, else {channel_fmt.DEFAULT_CHANNEL})")
     args = p.parse_args()
+    channel = channel_fmt.resolve(args.channel)
 
     cfg = load_config(Path(args.config))
     conn = connect(cfg["db_path"])
@@ -302,7 +308,7 @@ def main():
             if not args.dry_run:
                 mark_hold_released(conn, held["id"])
             emit(conn, cfg, action, res, held["id"], "released from overnight quiet-hours hold",
-                 args.dry_run)
+                 args.dry_run, channel=channel)
             conn.close()
             return
 
@@ -319,14 +325,15 @@ def main():
     # FEAT-02 Step 2: resolve the in-turn status line (SILENT evening, plus a FEAT-05
     # late morning) and record what was emitted on this eval's row (all_ok|warning|none).
     signal, status_line = resolve_status_line(cfg, action, args.session, health,
-                                              target_date=args.date, now=datetime.now(TZ))
+                                              target_date=args.date, now=datetime.now(TZ),
+                                              channel=channel)
     if not args.dry_run and event_id is not None:
         conn.execute("UPDATE trigger_events SET status_signal = ? WHERE id = ?",
                      (signal, event_id))
         conn.commit()
 
     emit(conn, cfg, action, result, event_id, detail, args.dry_run,
-         health=health, status_line=status_line, signal=signal)
+         health=health, status_line=status_line, signal=signal, channel=channel)
     conn.close()
 
 

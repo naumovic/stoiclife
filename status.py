@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import channel_fmt
+
 
 def _check(ok: bool, detail: str, hard: bool) -> dict:
     return {"ok": ok, "detail": detail, "hard": hard}
@@ -166,12 +168,14 @@ IN_TURN_SESSIONS = ("morning", "evening")
 
 
 def resolve_status_line(cfg: dict, action: str, session: str, health: dict,
-                        target_date: str | None = None, now: datetime | None = None):
+                        target_date: str | None = None, now: datetime | None = None,
+                        channel: str = channel_fmt.DEFAULT_CHANNEL):
     """FEAT-02: the status line to append to a SILENT in-turn coach reply.
 
     Returns (signal, line):
       signal: 'all_ok' | 'warning' | 'none'  — recorded on trigger_events.status_signal.
-      line:   the WhatsApp text to append, or None when nothing is appended.
+      line:   the text to append, formatted for `channel` (config holds the canonical
+              WhatsApp form), or None when nothing is appended.
 
     Appended ONLY on a SILENT in-turn (evening, per in_turn_sessions) eval — never on a
     fired day (SEND_FULL / CLARIFY / HOLD_QUIET) and never out-of-turn (safety-net). The
@@ -190,10 +194,12 @@ def resolve_status_line(cfg: dict, action: str, session: str, health: dict,
     if action != "SILENT" or not eligible:
         return "none", None
     if health["ok"]:
-        return "all_ok", f"{sig.get('ok_emoji', '🟢')} {sig.get('ok_line', '*stoiclife:* all ok')}"
+        line = f"{sig.get('ok_emoji', '🟢')} {sig.get('ok_line', '*stoiclife:* all ok')}"
+        return "all_ok", channel_fmt.render(line, channel)
     reason = health["reasons"][0] if health["reasons"] else "status check could not confirm health"
     warn = sig.get("warn_line", "*stoiclife:* heads up —")
-    return "warning", f"{sig.get('warn_emoji', '⚠️')} {warn} {reason}"
+    line = f"{sig.get('warn_emoji', '⚠️')} {warn} {reason}"
+    return "warning", channel_fmt.render(line, channel)
 
 
 def render_health_lines(health: dict) -> list[str]:

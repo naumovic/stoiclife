@@ -21,7 +21,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from coaching_format import CORRELATION, HEADER_PREFIX, OBSERVATION
+import channel_fmt
+from coaching_format import HEADER_PREFIX, labels
 from states import NON_SILENT, STATE_DISPLAY, STATE_OBJECTIVE
 
 REPO_DIR = Path(__file__).resolve().parent
@@ -117,12 +118,14 @@ def fetch_journal_window(conn, end_date: str) -> list[sqlite3.Row]:
 
 
 def render_payload(conn, cfg: dict, *, state: str, date: str, session: str,
-                   deltas: dict, matched_keywords: str, confidence) -> str:
+                   deltas: dict, matched_keywords: str, confidence,
+                   channel: str = channel_fmt.DEFAULT_CHANNEL) -> str:
     """Render the full coaching payload from already-classified inputs.
 
     Used both by build() (from a persisted event) and by the orchestrator's
     dry-run (from an in-memory classification, no DB row required).
     """
+    observation, correlation = labels(channel)
     display = STATE_DISPLAY[state]
     objective = STATE_OBJECTIVE[state]
     prompt_template = (PROMPTS_DIR / f"{state}.md").read_text().strip()
@@ -157,8 +160,8 @@ def render_payload(conn, cfg: dict, *, state: str, date: str, session: str,
         "Respond with EXACTLY this shape — plain text, no markdown tables or # headers:",
         "",
         f"{HEADER_PREFIX} {display}",
-        f"{OBSERVATION} <one line: what today's body/mind data shows>",
-        f"{CORRELATION} <one line: how that ties to the recent journal entries>",
+        f"{observation} <one line: what today's body/mind data shows>",
+        f"{correlation} <one line: how that ties to the recent journal entries>",
         "1. <actionable recommendation>",
         "2. <actionable recommendation>",
         "",
@@ -186,7 +189,7 @@ def render_payload(conn, cfg: dict, *, state: str, date: str, session: str,
     return payload
 
 
-def build(event_id: int, cfg: dict) -> str:
+def build(event_id: int, cfg: dict, channel: str = channel_fmt.DEFAULT_CHANNEL) -> str:
     """CLI entry: load a FIRED event from the DB and render its payload."""
     conn = connect(cfg["db_path"])
     ev = conn.execute("SELECT * FROM trigger_events WHERE id = ?", (event_id,)).fetchone()
@@ -201,6 +204,7 @@ def build(event_id: int, cfg: dict) -> str:
         conn, cfg, state=ev["state"], date=ev["date"], session=ev["session"],
         deltas=json.loads(ev["deltas_json"] or "{}"),
         matched_keywords=ev["matched_keywords"], confidence=ev["confidence"],
+        channel=channel,
     )
     conn.close()
     return payload
@@ -210,8 +214,10 @@ def main():
     p = argparse.ArgumentParser(description="Build the coaching payload for a fired trigger.")
     p.add_argument("--event-id", type=int, required=True)
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
+    p.add_argument("--channel", choices=channel_fmt.CHANNELS, default=None,
+                   help=f"default: ${channel_fmt.ENV_VAR}, else {channel_fmt.DEFAULT_CHANNEL}")
     args = p.parse_args()
-    print(build(args.event_id, load_config(Path(args.config))))
+    print(build(args.event_id, load_config(Path(args.config)), channel_fmt.resolve(args.channel)))
 
 
 if __name__ == "__main__":

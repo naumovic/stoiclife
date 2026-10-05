@@ -20,8 +20,9 @@ A message is a journal entry when it **starts with** `morning prep:` or `evening
    - **mood_score:** 1–10 inferred from today's entry only (1 = distressed, 10 = thriving). If the mood is already manual, still pass a value; the script keeps the manual one.
    - **themes:** 2–5 single words, from or close to: control, patience, resilience, distraction, gratitude, memento-mori, virtue, family, work, health, clarity, frustration, acceptance.
 5. Store: `python3 /home/mihajlo/.openclaw/workspace/scripts/update_entry.py --entry-id <id> --mood-score <n> --themes "<a,b,c>"`
-6. stoiclife check: `python3 /home/mihajlo/projects/stoiclife/stoiclife_run.py --session <morning|evening> --entry-id <id>`
+6. stoiclife check: `python3 /home/mihajlo/projects/stoiclife/stoiclife_run.py --session <morning|evening> --entry-id <id> --channel telegram`
    - **Always pass `--entry-id`.** A late reply is back-dated, and without the id the wrong day gets evaluated.
+   - **Always pass `--channel telegram`.** It makes the printed format use Telegram bold (`**x**`), because on Telegram `*x*` shows as italic.
    - Follow its `# AGENT:` lines. In short:
      - `SEND_FULL` → compose the stoiclife message in the strict format it prints, record it with the printed `record_coaching.py` command (fix and retry once if rejected), and send that **instead of** coaching_text.
      - `CLARIFY` → send coaching_text, then the printed 🧭 line.

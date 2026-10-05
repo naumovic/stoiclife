@@ -11,6 +11,7 @@ Usage:
     python3 build_payload.py --event-id N | ewok-generate | \
         python3 record_coaching.py --event-id N
     python3 record_coaching.py --event-id N --file message.txt
+    python3 record_coaching.py --event-id N --channel telegram   # validate Telegram bold
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import channel_fmt
 from coaching_format import validate
 
 from _tz import TZ  # active zone: home, or the trip zone while travel-mode is on
@@ -42,6 +44,8 @@ def main() -> int:
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
     p.add_argument("--force", action="store_true",
                    help="store even if invalid (valid=0), instead of rejecting")
+    p.add_argument("--channel", choices=channel_fmt.CHANNELS, default=None,
+                   help=f"default: ${channel_fmt.ENV_VAR}, else {channel_fmt.DEFAULT_CHANNEL}")
     args = p.parse_args()
 
     text = Path(args.file).read_text() if args.file else sys.stdin.read()
@@ -58,7 +62,7 @@ def main() -> int:
         print(f"error: trigger_events id {args.event_id} not found", file=sys.stderr)
         return 1
 
-    ok, errors = validate(text)
+    ok, errors = validate(text, channel_fmt.resolve(args.channel))
     if not ok and not args.force:
         print("rejected — coaching failed format validation:", file=sys.stderr)
         for e in errors:

@@ -36,7 +36,12 @@ Rule: update this file after every completed step and commit it with the code. S
     - New WARN `tools.exec.fs_tools_disabled_but_exec_enabled` for `coach`: accepted for single user (only Mihajlo can reach it). Must be resolved before multi-user (sandbox `all` or a plugin-only toolset).
     - Other WARNs (trusted proxies, multi-user heuristic, plugin tools reachable on main) are pre-existing and unrelated.
 - [ ] **Phase 3: re-wire coaching to Telegram**
-  - [ ] Make the formatters channel-aware (`coaching_format.py`, `build_payload.py`, `weekly_review.py`, `status.py`) + tests
+  - [x] Make the formatters channel-aware (`coaching_format.py`, `build_payload.py`, `weekly_review.py`, `status.py`) + tests (2026-10-06)
+    - New `channel_fmt.py`. Text stays authored in WhatsApp style and is converted at the edge; the only real difference is bold. In OpenClaw 2026.6.8, `markdownToTelegramHtml` turns `*x*` into **italic** (`<i>`), and only `**x**` becomes `<b>`.
+    - Channel per invocation: `--channel` > `$STOICLIFE_CHANNEL` > `whatsapp`. It's deliberately not a config switch, because WhatsApp and Telegram crons run side by side until Phase 4.
+    - `--channel` on `stoiclife_run.py`, `build_payload.py`, `record_coaching.py`, `coaching_format.py`, `weekly_review.py`. The runner passes it into the printed `record_coaching.py` command, so the validator checks the right bold. On Telegram, a message using WhatsApp bold is rejected.
+    - The coach hook (`coach-workspace/AGENTS.md` step 6) now passes `--channel telegram`. This is live on the coach's next turn, since the workspace is this checkout, and it only affects the Telegram coach.
+    - Tests: new `tests/test_channel_fmt.py` (19 cases). All 52 pass (19 + 19 + 14). WhatsApp output was **byte-identical** before and after for `weekly_review.py`, `build_payload.py --event-id 226` and a `stoiclife_run.py` dry run.
   - [ ] New coach crons → telegram account `coach`, to 8917837483: morning 07:30 (Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`) and evening 20:30 (`evening-prompt.sh`)
   - [ ] Weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`
   - [ ] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp)
@@ -52,7 +57,7 @@ Rule: update this file after every completed step and commit it with the code. S
 ## Findings (Phase 0, 2026-10-05, OpenClaw 2026.6.8)
 
 **Where things live**
-- Coaching engine: this repo. `stoiclife_run.py` (gate → SILENT/CLARIFY/SEND_FULL/HOLD_QUIET; never sends), `trigger_matrix.py`, `status.py`, `build_payload.py`, `coaching_format.py`, `record_coaching.py`, `record_reaction.py`, `weekly_review.py`, `sleep_score.py`, `spo2_signal.py`, `stoiclife_config.json`, `prompts/*.md`. Tests: `tests/test_late_morning.py` and `tests/test_manual_mood.py`, standalone scripts, 33 cases.
+- Coaching engine: this repo. `stoiclife_run.py` (gate → SILENT/CLARIFY/SEND_FULL/HOLD_QUIET; never sends), `trigger_matrix.py`, `status.py`, `build_payload.py`, `coaching_format.py`, `record_coaching.py`, `record_reaction.py`, `weekly_review.py`, `sleep_score.py`, `spo2_signal.py`, `stoiclife_config.json`, `prompts/*.md`. Tests: `tests/test_late_morning.py` and `tests/test_manual_mood.py`, standalone scripts, 33 cases (Phase 3 added `tests/test_channel_fmt.py`).
 - Journal flow is **not in git here**. It lives in `~/.openclaw/workspace/scripts/` (`save_entry.py`, `coach_context.py`, `update_entry.py`, `set_prompt_state.py`, `db_init.py`, `evening-prompt.sh`, `morning-brief.sh`, `weekly-digest.sh`) and is auto-synced by the workspace cron.
 - Coach persona = instructions to Ewok in `workspace/TOOLS.md` ("Stoic Journal") + `AGENTS.md`. Framework: `workspace/stoic/stoic_knowledge.md`. Journal prompts: `workspace/stoic/prompts/`.
 - Health ingestion: `~/projects/fitbit-sync` → `biometrics` table (single OAuth token).
@@ -127,4 +132,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 approved 2026-10-06. Start with the formatters: make `coaching_format.py`, `build_payload.py`, `weekly_review.py` and `status.py` channel-aware, and add tests. Code only, on the branch. Show the diff before any cron or config change.
+Phase 3 step 2: draft the new coach crons for the `coach` agent, delivering via telegram account `coach` to 8917837483.
+- Morning 07:30: Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`.
+- Evening 20:30: `evening-prompt.sh`.
+
+First read how `morning-brief.sh` builds the Health Snapshot and Stoic sections, then build the cron candidates. Show Mihajlo the diff and get approval before writing to the cron store.
