@@ -43,6 +43,10 @@ Rule: update this file after every completed step and commit it with the code. S
     - The coach hook (`coach-workspace/AGENTS.md` step 6) now passes `--channel telegram`. This is live on the coach's next turn, since the workspace is this checkout, and it only affects the Telegram coach.
     - Tests: new `tests/test_channel_fmt.py` (19 cases). All 52 pass (19 + 19 + 14). WhatsApp output was **byte-identical** before and after for `weekly_review.py`, `build_payload.py --event-id 226` and a `stoiclife_run.py` dry run.
   - [ ] New coach crons → telegram account `coach`, to 8917837483: morning 07:30 (Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`) and evening 20:30 (`evening-prompt.sh`)
+    - [x] `coach_morning.sh` (this repo): the brief's Health Snapshot + morning prep, without System/Calendar. Output checked by hand (2026-10-06).
+    - [x] `STOICLIFE_SKIP_PROMPT_STATE=1` guard in `coach_morning.sh` and the workspace `evening-prompt.sh`, so test runs don't write `state.json`. Gotcha: running `evening-prompt.sh` by hand **does** set awaiting-evening. It was done once by mistake at 00:37 on 2026-10-06 and reverted (stray line left in `stoic.log`).
+    - Design: **command payloads** (`--command`, no model turn; stdout delivered verbatim via announce, `NO_REPLY` = silent). This is deterministic, free, and can't paraphrase the prompt. Created **disabled**: hard cutover, so they're enabled in Phase 4 when the WhatsApp ones are disabled. travel-mode retimes every cron-kind job, disabled ones included, so the new jobs need no change there.
+    - [ ] Approval → `cron add` ×2 → manual delivery test (one-shot copies with the skip env)
   - [ ] Weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`
   - [ ] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp)
   - [ ] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays
@@ -132,8 +136,4 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 2: draft the new coach crons for the `coach` agent, delivering via telegram account `coach` to 8917837483.
-- Morning 07:30: Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`.
-- Evening 20:30: `evening-prompt.sh`.
-
-First read how `morning-brief.sh` builds the Health Snapshot and Stoic sections, then build the cron candidates. Show Mihajlo the diff and get approval before writing to the cron store.
+Phase 3 step 2: waiting on Mihajlo's approval for the two disabled coach command crons (candidates in the session / commit message). Then do a one-shot delivery test to the coach bot with `STOICLIFE_SKIP_PROMPT_STATE=1`.
