@@ -1,0 +1,4 @@
+# Runtime state OpenClaw may create in the coach workspace
+memory/
+.openclaw/
+BOOTSTRAP.md

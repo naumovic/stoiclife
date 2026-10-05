@@ -11,10 +11,10 @@ Rule: update this file after every completed step and commit it with the code. S
   - [x] `CLAUDE.md` pointer in stoiclife + `~/.openclaw/workspace/CLAUDE.md`
 - [x] **Phase 0: recon (read-only)** (findings below)
 - [ ] **Phase 1: `coach` agent**
-  - [ ] Draft `agents.list` (`main` default unchanged + `coach`, workspace `~/.openclaw/workspace-coach`); check every key against the 2026.6.8 docs
-  - [ ] Build the coach workspace: SOUL/AGENTS distilled from `workspace/TOOLS.md` "Stoic Journal" + `AGENTS.md` Stoic section, plus `stoic_knowledge.md` and the journal prompts
-  - [ ] Tool policy: keep `exec` (scripts need it); deny browser/web/write/edit etc.; no MEMORY.md; decide about Supermemory
-  - [ ] Per-agent model (Sonnet via the API-key profile)
+  - [x] Draft `agents.list` (`main` default unchanged + `coach`, workspace `~/.openclaw/workspace-coach`); check every key against the 2026.6.8 docs
+  - [x] Build the coach workspace: SOUL/AGENTS distilled from `workspace/TOOLS.md` "Stoic Journal" + `AGENTS.md` Stoic section, plus `stoic_knowledge.md` and the journal prompts
+  - [x] Tool policy: keep `exec` (scripts need it); deny browser/web/write/edit etc.; no MEMORY.md; decide about Supermemory
+  - [x] Per-agent model (Sonnet via the API-key profile)
   - [ ] Show the config diff → approval → apply → `config validate` (no restart without asking)
 - [ ] **Phase 2: Telegram bot**
   - [ ] Mihajlo creates the bot in @BotFather
@@ -25,13 +25,16 @@ Rule: update this file after every completed step and commit it with the code. S
   - [ ] `openclaw security audit`, report and fix
 - [ ] **Phase 3: re-wire coaching to Telegram**
   - [ ] Make the formatters channel-aware (`coaching_format.py`, `build_payload.py`, `weekly_review.py`, `status.py`) + tests
-  - [ ] Crons: Stoic Evening Review + stoiclife Safety-Net → agent `coach`, telegram account `coach`
-  - [ ] Split the Stoic part out of Morning Brief / Weekly Digest into a coach cron
-  - [ ] Capture flow (`morning prep:` / `evening review:`, 👍/👎) works in the coach chat; check whether Telegram reactions reach the agent
+  - [ ] New coach crons → telegram account `coach`, to 8917837483: morning 07:30 (Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`) and evening 20:30 (`evening-prompt.sh`)
+  - [ ] Weekly-review section → coach cron; stoiclife Safety-Net → agent `coach`
+  - [ ] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp)
+  - [ ] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays
+  - [ ] Capture flow (`morning prep:` / `evening review:`, `mood N`, 👍/👎) works in the coach chat; check whether Telegram reactions reach the agent
   - [ ] Dry run + one manual cron run delivered to the coach bot
-- [ ] **Phase 4: parallel run & cutover**
-  - [ ] Parallel run (1–2 weeks)
-  - [ ] Remove coaching crons/instructions from WhatsApp/Ewok; update OPERATIONS.md, TOOLS.md (20k bootstrap char limit)
+- [ ] **Phase 4: hard cutover (no parallel run)**
+  - [ ] Disable (don't delete) the WhatsApp coaching crons; flip the flags
+  - [ ] Rollback runbook in OPERATIONS.md (re-enable crons, flip flags back)
+  - [ ] Re-point `~/.openclaw/stoic/stoic_knowledge.md` to the coach copy; trim Ewok's TOOLS.md Stoic section to a pointer (20k bootstrap char limit)
 - **Deferred (multi-user, future):** `user_id` data layer, trusted-identity plugin, pairing onboarding, global dmScope, per-user caps/tz, Supermemory isolation, per-user Fitbit, /export /delete, privacy note.
 
 ## Findings (Phase 0, 2026-10-05, OpenClaw 2026.6.8)
@@ -41,7 +44,7 @@ Rule: update this file after every completed step and commit it with the code. S
 - Journal flow is **not in git here**. It lives in `~/.openclaw/workspace/scripts/` (`save_entry.py`, `coach_context.py`, `update_entry.py`, `set_prompt_state.py`, `db_init.py`, `evening-prompt.sh`, `morning-brief.sh`, `weekly-digest.sh`) and is auto-synced by the workspace cron.
 - Coach persona = instructions to Ewok in `workspace/TOOLS.md` ("Stoic Journal") + `AGENTS.md`. Framework: `workspace/stoic/stoic_knowledge.md`. Journal prompts: `workspace/stoic/prompts/`.
 - Health ingestion: `~/projects/fitbit-sync` → `biometrics` table (single OAuth token).
-- **Drawing prompts don't exist anywhere** (code, skills, crons).
+- "Drawing prompts" in the brief = the journal prompts: morning prep at 07:30 inside the `Morning Brief` cron (`scripts/morning-brief.sh` → `stoic/prompts/morning_prompt.txt`), evening review at 20:30 via the `Stoic Evening Review` cron (`scripts/evening-prompt.sh`). Both call `set_prompt_state.py`.
 
 **WhatsApp coupling**
 - Crons announcing to `whatsapp +61410772771`: Morning Brief `01c20347` (mixed content), Stoic Evening Review `12a4a4e5`, Weekly Digest `a1fb56f7` (mixed), stoiclife Safety-Net `74b9acbe`. The Fitbit 10:00 payload text sends failure alerts by WhatsApp.
@@ -67,6 +70,12 @@ Rule: update this file after every completed step and commit it with the code. S
 - Dynamic per-user agents exist for **Feishu only**.
 - For the future: plugin tool factories receive `toolContext.requesterSenderId`, "Trusted sender id from inbound context (runtime-provided, not tool args)" (`dist/types-*.d.ts`). This is the basis for a model-proof `user_id`.
 
+**Config writes can restart the gateway (found in Phase 1 prep)**
+- `gateway.reload` is unset, so it defaults to `hybrid`: "Hot-applies safe changes instantly. Automatically restarts for critical ones" (`docs/gateway/configuration.md:555`). Writing `openclaw.json` therefore counts as a possible restart.
+- Procedure: build the candidate in the scratchpad → `OPENCLAW_CONFIG_PATH=<candidate> ~/.npm-global/bin/openclaw config validate` → show the diff → ask → back up `openclaw.json.bak-coach-<ts>` → write → `is-active` + gateway log.
+- Heartbeat scope: "if any agent has a `heartbeat` block, only those agents run heartbeats" (`docs/gateway/heartbeat.md:120`), so `main` gets an explicit block.
+- A new agent reads through to `main`'s auth profiles (`concepts/multi-agent.md:32-35`).
+
 **Multi-user blockers (why it's deferred)**
 - DB `~/.openclaw/stoic/stoic_journal.db` has no `user_id` (`biometrics.date` is the PK).
 - Global `state.json`, one timezone knob, "Mihajlo" hardcoded.
@@ -80,13 +89,18 @@ Rule: update this file after every completed step and commit it with the code. S
 - **2026-10-05: still use a separate bot + `coach` agent.** It leaves Travelboard's bot and the `main` agent untouched, and it's the hardest part to retrofit when multi-user comes back.
 - **2026-10-05: leave `session.dmScope` alone.** One allowlisted user, and session keys already include the agent id, so a global change would only split Mihajlo's Ewok WhatsApp/Telegram sessions for no gain.
 
+- **2026-10-05: answers from Mihajlo.**
+  1. "Drawing prompts" = the 07:30 and 20:30 journal prompts.
+  2. Move only the Stoic part; calendar and tasks stay on WhatsApp. The Health Snapshot counts as coaching ("health-tracker stats"), so it moves too. Confirm at the start of Phase 3.
+  3. Hard move, no parallel run; WhatsApp is kept ready for rollback.
+  4. Fitbit failure alerts go to both channels.
+- **2026-10-05: coach workspace = `~/projects/stoiclife/coach-workspace/`**, used directly as the agent workspace, so it's versioned on this branch without symlinks.
+- **2026-10-05: coach model = Sonnet, Gemini Pro fallback, never Opus** (provider-fallback-spillover lesson). Tools are an allow-list: exec, process, read, message, session_status.
+
 ## Open questions for Mihajlo
 
-1. Drawing prompts don't exist. Out of scope for now?
-2. Morning Brief / Weekly Digest mix Ewok content with Stoic content. OK to move only the Stoic part to Telegram?
-3. Parallel run: duplicate on both channels, or Telegram-only coaching with WhatsApp as fallback?
-4. Fitbit sync-failure alerts: keep them on WhatsApp (system alert) or move them to the coach bot?
+- (none open; Health Snapshot placement gets confirmed at the start of Phase 3)
 
 ## Next step
 
-Wait for Mihajlo's go-ahead on Phase 1, then draft the `coach` agent config + workspace and show the diff.
+Phase 1: `coach-workspace/` built; config candidate (`agents.list`: main + heartbeat, coach) validates. **Waiting for Mihajlo's OK to write the live `openclaw.json`** (hybrid reload may restart the gateway). Then: back up → write → `is-active` + log → `agents list` → coach test turn → check heartbeat is main-only → Ewok WhatsApp + Travelboard still answer.
