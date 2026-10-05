@@ -24,10 +24,14 @@ Rule: update this file after every completed step and commit it with the code. S
 - [ ] **Phase 2: Telegram bot**
   - [x] Mihajlo creates the bot in @BotFather (@stoiclife_coach_bot; `getMe` ok, 2026-10-05)
   - [x] Token → `~/.openclaw/.env` `TELEGRAM_COACH_BOT_TOKEN`, referenced as `${TELEGRAM_COACH_BOT_TOKEN}` (`.env` is mode 664; propose chmod 600)
-  - [ ] `channels.telegram`: **top level left untouched** (= implicit `default` account, Travelboard) + `accounts.coach` {botToken `${…}`, dmPolicy allowlist [8917837483], groupPolicy disabled} + `defaultAccount: "default"`. Candidate validated; awaiting OK
-  - [ ] Binding coach account → `coach` agent
-  - [ ] Diff → approval → `config validate` → restart (with OK) → is-active, Travelboard DM + group OK, coach bot answers only Mihajlo in an `agent:coach:*` session
-  - [ ] `openclaw security audit`, report and fix
+  - [x] `channels.telegram`: **top level left untouched** (= implicit `default` account, Travelboard) + `accounts.coach` {botToken `${…}`, dmPolicy allowlist [8917837483], groupPolicy disabled} + `defaultAccount: "default"`. Applied 2026-10-05 23:59 (backup `openclaw.json.bak-coach-p2-20261005-235942`), hot-applied with **no gateway restart**. The log shows `[coach] starting provider (@stoiclife_coach_bot)` + `[default] starting provider (@ewok_trip_bot)`, no duplicate start, no errors. `channels status`: coach, default and WhatsApp all connected. `~/.openclaw/.env` chmod 600
+  - [x] Binding coach account → `coach` agent
+  - [x] Diff → approval → apply → is-active, both bots connected
+  - [ ] Live test: Mihajlo DMs @stoiclife_coach_bot → lands in an `agent:coach:*` session; Travelboard `/itinerary` DM still answers
+  - [x] `openclaw security audit` (run after the change and against the pre-change backup)
+    - Pre-existing CRITICAL `channels.telegram.groups.allowFrom.missing`: the Travelboard group's deliberate `groupAllowFrom: []` (travelboard OPERATIONS.md gotcha 5). Fix = per-sender list of travellers' numeric IDs. **Travelboard change → needs Mihajlo's decision.**
+    - New WARN `tools.exec.fs_tools_disabled_but_exec_enabled` for `coach`: accepted for single user (only Mihajlo can reach it). Must be resolved before multi-user (sandbox `all` or a plugin-only toolset).
+    - Other WARNs (trusted proxies, multi-user heuristic, plugin tools reachable on main) are pre-existing and unrelated.
 - [ ] **Phase 3: re-wire coaching to Telegram**
   - [ ] Make the formatters channel-aware (`coaching_format.py`, `build_payload.py`, `weekly_review.py`, `status.py`) + tests
   - [ ] New coach crons → telegram account `coach`, to 8917837483: morning 07:30 (Health Snapshot + Stoic morning prep + `set_prompt_state.py --session morning`) and evening 20:30 (`evening-prompt.sh`)
@@ -116,5 +120,7 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-1. Do the pending Phase 1 heartbeat check (see the Phase 1 checklist).
-2. Wait for Mihajlo's go-ahead on Phase 2. He creates the bot in @BotFather and puts the token in `~/.openclaw/.env` as `TELEGRAM_COACH_BOT_TOKEN=…` himself, so the token never passes through chat. Then draft the `channels.telegram.accounts` + binding candidate, validate it, show the diff, and ask. Note: the Telegram account change may need a real restart rather than a hot reload; check the docs and ask first.
+1. Live tests: Mihajlo DMs @stoiclife_coach_bot; check the `agent:coach:*` session key. Mihajlo sends `/itinerary` to the Travelboard bot.
+2. Pending Phase 1 heartbeat check (after ~00:23).
+3. Mihajlo decides on the pre-existing audit CRITICAL (Travelboard group per-sender allowlist).
+4. Then stop for Phase 3 approval.
