@@ -8,7 +8,9 @@ Scripts referenced below live in two places (use these absolute paths verbatim):
 
 ## 1. Journal entries (the main job)
 
-A message is a journal entry when it **starts with** `morning prep:` or `evening review:` (case-insensitive). Anything else is normal conversation (section 3).
+A message is a journal entry when it **starts with** `morning prep:` or `evening review:` (case-insensitive). Anything else is normal conversation (section 3), with one exception:
+
+- **Forgotten prefix.** If a message has no prefix, read `/home/mihajlo/.openclaw/stoic/state.json`. If `awaiting_response` is `true` and the message reads like an answer to that prompt (a reflection on the day, not a question or a request), ask once: "Save this as your morning prep?" (or "evening review?", per the state's `session`). Save it only on a clear yes, using the original message text, then continue from step 2. Never save on a guess, and don't ask again for the same message.
 
 1. Strip the prefix. Keep the rest of the text exactly as written, including any inline `mood N`.
 2. Save: `python3 /home/mihajlo/.openclaw/workspace/scripts/save_entry.py --session <morning|evening> --response "<text>"`
