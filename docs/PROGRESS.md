@@ -32,7 +32,7 @@ Rule: update this file after every completed step and commit it with the code. S
     - Travelboard: `/itenerary` (typo) + a follow-up → `@ewok_trip_bot` → `agent:main:main` (account `default`, Gemini), ran `travelboard.py itinerary next` → "Nothing upcoming." Routing is unchanged. The follow-up's answer about the "last destination" was shaky, but that's Gemini on `main` and has nothing to do with this change.
     - Isolation: nothing coach-related went into `agent:main:*`, and nothing Travelboard-related went into `agent:coach:*`.
   - [x] `openclaw security audit` (run after the change and against the pre-change backup)
-    - Pre-existing CRITICAL `channels.telegram.groups.allowFrom.missing`: the Travelboard group's deliberate `groupAllowFrom: []` (travelboard OPERATIONS.md gotcha 5). Fix = per-sender list of travellers' numeric IDs. **Travelboard change → needs Mihajlo's decision.**
+    - Pre-existing CRITICAL `channels.telegram.groups.allowFrom.missing`: the Travelboard group's deliberate `groupAllowFrom: []` (travelboard OPERATIONS.md gotcha 5). Fix = per-sender list of travellers' numeric IDs. **2026-10-06 Mihajlo: leave as is for now** (accepted, see Decisions).
     - New WARN `tools.exec.fs_tools_disabled_but_exec_enabled` for `coach`: accepted for single user (only Mihajlo can reach it). Must be resolved before multi-user (sandbox `all` or a plugin-only toolset).
     - Other WARNs (trusted proxies, multi-user heuristic, plugin tools reachable on main) are pre-existing and unrelated.
 - [ ] **Phase 3: re-wire coaching to Telegram**
@@ -117,6 +117,8 @@ Rule: update this file after every completed step and commit it with the code. S
 - **2026-10-05: coach workspace = `~/projects/stoiclife/coach-workspace/`**, used directly as the agent workspace, so it's versioned on this branch without symlinks.
 - **2026-10-05: coach model = Sonnet, Gemini Pro fallback, never Opus** (provider-fallback-spillover lesson). Tools are an allow-list: exec, process, read, message, session_status.
 
+- **2026-10-06: Travelboard group allowlist stays `groupAllowFrom: []` for now.** The audit CRITICAL `channels.telegram.groups.allowFrom.missing` predates this work and is accepted. Revisit it before more travellers join or before going multi-user.
+
 ## Open questions for Mihajlo
 
 - (none open; Health Snapshot placement gets confirmed at the start of Phase 3)
@@ -124,5 +126,4 @@ Rule: update this file after every completed step and commit it with the code. S
 ## Next step
 
 1. Pending Phase 1 heartbeat check (after ~00:23): `openclaw system heartbeat last` returned `{}` at 00:13 and the log has no heartbeat run since 23:38, so re-check once 00:23 has passed. The coach `sessions.json` still only holds `phase1-test` + `main` (the Telegram DM), with no heartbeat key.
-2. Mihajlo decides on the pre-existing audit CRITICAL (Travelboard group per-sender allowlist).
-3. Then stop for Phase 3 approval.
+2. Then stop for Phase 3 approval.
