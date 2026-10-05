@@ -35,7 +35,7 @@ Rule: update this file after every completed step and commit it with the code. S
     - Pre-existing CRITICAL `channels.telegram.groups.allowFrom.missing`: the Travelboard group's deliberate `groupAllowFrom: []` (travelboard OPERATIONS.md gotcha 5). Fix = per-sender list of travellers' numeric IDs. **2026-10-06 Mihajlo: leave as is for now** (accepted, see Decisions).
     - New WARN `tools.exec.fs_tools_disabled_but_exec_enabled` for `coach`: accepted for single user (only Mihajlo can reach it). Must be resolved before multi-user (sandbox `all` or a plugin-only toolset).
     - Other WARNs (trusted proxies, multi-user heuristic, plugin tools reachable on main) are pre-existing and unrelated.
-- [ ] **Phase 3: re-wire coaching to Telegram**
+- [x] **Phase 3: re-wire coaching to Telegram** (complete except the real-entry write test, which Mihajlo runs from 2026-10-06 in normal use)
   - [x] Make the formatters channel-aware (`coaching_format.py`, `build_payload.py`, `weekly_review.py`, `status.py`) + tests (2026-10-06)
     - New `channel_fmt.py`. Text stays authored in WhatsApp style and is converted at the edge; the only real difference is bold. In OpenClaw 2026.6.8, `markdownToTelegramHtml` turns `*x*` into **italic** (`<i>`), and only `**x**` becomes `<b>`.
     - Channel per invocation: `--channel` > `$STOICLIFE_CHANNEL` > `whatsapp`. It's deliberately not a config switch, because WhatsApp and Telegram crons run side by side until Phase 4.
@@ -81,10 +81,18 @@ Rule: update this file after every completed step and commit it with the code. S
     - Default value `reactionNotifications: own` and the code path, for reference: `bot-*.js` `bot.on("message_reaction")` → `wasSentByBot` → `authorizeTelegramEventSender` → `enqueueSystemEvent` (in-memory, not in `openclaw.sqlite`).
     - [x] Forgotten-prefix rule added to `coach-workspace/AGENTS.md` §1: no prefix + `state.json` awaiting + reads like an answer → ask once "Save this as your morning prep?"; save only on a clear yes.
   - [x] Dry run + one manual cron run delivered to the coach bot: done during steps 2, 3 and 5 (one-shot copies of all four coach crons + the Fitbit alert, all delivered from `accountId=coach`).
-- [ ] **Phase 4: hard cutover (no parallel run)**
-  - [ ] Disable (don't delete) the WhatsApp coaching crons; flip the flags
-  - [ ] Rollback runbook in OPERATIONS.md (re-enable crons, flip flags back)
-  - [ ] Re-point `~/.openclaw/stoic/stoic_knowledge.md` to the coach copy; trim Ewok's TOOLS.md Stoic section to a pointer (20k bootstrap char limit)
+- [x] **Phase 4: hard cutover (no parallel run)**, done 2026-10-06 01:15–01:25 at Mihajlo's request ("do the phase 4 full cutover now and close this"; he tests the write path in normal use and reports bugs in a new session)
+  - [x] Disable (don't delete) the WhatsApp coaching crons; flip the flags
+    - Backup of every cron job first: `~/.openclaw/cron/bak-coach-cutover-20261006-011509.json`.
+    - `~/.openclaw/stoic/coaching-channel` = `telegram`.
+    - Disabled `12a4a4e5` Stoic Evening Review and `74b9acbe` stoiclife Safety-Net (WhatsApp).
+    - Enabled the four coach jobs. First runs: morning 07:30 + safety-net 11:00 + evening 20:30 on 2026-10-06; weekly Sun 2026-10-11 08:00.
+    - Morning Brief / Weekly Digest stay on WhatsApp, minus the Stoic/Health sections (verified live with the knob: brief = System + Calendar, `state.json` untouched; digest has no stoiclife block).
+  - [x] Rollback runbook in OPERATIONS.md ("Coaching channel" → "Rollback to WhatsApp"). The old WhatsApp safety-net section is marked DISABLED and kept for rollback.
+  - [x] Re-point `~/.openclaw/stoic/stoic_knowledge.md` → `coach-workspace/stoic_knowledge.md` (content identical; `build_payload.py` reads through the link). Ewok's TOOLS.md Stoic section is now a pointer, plus the Morning Brief / Weekly Digest / fitbit bullets; AGENTS.md has the Stoic Journal pointer + feedback line. Originals: `docs/ewok-stoic-sections-archived.md`. Sizes: TOOLS.md 14,567 / AGENTS.md 18,448 chars (limit 20,000), no truncation in the gateway log.
+    - Verified with an undelivered `main` turn (session `agent:main:cutover-check`): Ewok says it would redirect `evening review:` to @stoiclife_coach_bot and that 🧭 ratings go there.
+  - Gateway active; `channels status`: Telegram coach + default and WhatsApp all connected.
+  - Side note: the CLI prints `supermemory: not configured`, so the global-capture concern for test text may be moot. Not investigated.
 - **Deferred (multi-user, future):** `user_id` data layer, trusted-identity plugin, pairing onboarding, global dmScope, per-user caps/tz, Supermemory isolation, per-user Fitbit, /export /delete, privacy note.
 
 ## Findings (Phase 0, 2026-10-05, OpenClaw 2026.6.8)
@@ -165,10 +173,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 6, last part: the real-entry test on 2026-10-06. After the 07:30 WhatsApp brief, Mihajlo replies in the **Telegram coach chat** with `morning prep: … mood N`; same at 20:30 with `evening review:`. Then check:
-- the `journal_entries` row: date linked to the prompt, `mood_source` manual
-- `update_entry` themes
-- the `trigger_events` row from `stoiclife_run --channel telegram`
-- the coach reply format
-
-Optionally also test the forgotten-prefix rule. When both pass, Phase 3 is complete → stop for approval before Phase 4 (cutover).
+**Migration complete (2026-10-06).** Remaining, in normal use:
+- Mihajlo's first real `morning prep:` / `evening review:` entries in the coach chat (the Phase 3 write test). Check the `journal_entries` row: date from prompt state, manual mood, themes; also the `trigger_events` row from `stoiclife_run --channel telegram` and the reply format.
+- First live runs: 07:30 morning, 11:00 safety-net, 20:30 evening (2026-10-06), weekly Sun 2026-10-11 08:00. Check `cron_run_logs`.
+- Bugs → new session; start from OPERATIONS.md "Coaching channel" and this file.
+- Later (optional): debug Telegram tap reactions (verbose log); multi-user (deferred list above).

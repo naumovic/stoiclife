@@ -10,19 +10,50 @@ the recreate commands are recorded here.
 stoiclife_run.py  (deterministic brain: matrix → cooldown → confidence gate → quiet hours → dedup)
       │  prints  STOICLIFE_ACTION: SILENT | CLARIFY | SEND_FULL | HOLD_QUIET
       ▼
-OpenClaw cron (agentTurn)  → Ewok reads the action and:
+OpenClaw cron (agentTurn)  → the coach agent (was Ewok) reads the action and:
       • SILENT / HOLD_QUIET → replies HEARTBEAT_OK  (framework delivers nothing)
       • CLARIFY            → announces the one-line nudge
       • SEND_FULL          → generates coaching from the payload, validates+records
                              via record_coaching.py (sets message_sent=1), announces it
       ▼
-announce → WhatsApp +61410772771
+announce → Telegram, coach bot (account `coach`) → 8917837483   (WhatsApp until 2026-10-06)
 ```
 
 Generation happens **inside Ewok's agent turn** (correct model chain, no
 script-level LLM call → no paid-fallback spillover). The script never sends.
 
-## Live cron — "stoiclife Safety-Net (11:00)"
+## Coaching channel (since 2026-10-06: Telegram coach bot)
+
+All Stoic coaching goes through **@stoiclife_coach_bot** (OpenClaw telegram account `coach`, bound to agent `coach`, workspace `coach-workspace/`). Ewok on WhatsApp keeps calendar/system/tasks and points journal entries at the coach bot. Migration log: `docs/PROGRESS.md`.
+
+**Knob:** `~/.openclaw/stoic/coaching-channel` (`whatsapp` | `telegram`, missing = `whatsapp`), read by `workspace/scripts/coaching-channel.sh`. On `telegram`, `morning-brief.sh` drops Health Snapshot + morning prep + `set_prompt_state`, and `weekly-digest.sh` drops the weekly review.
+
+**Live coach crons** (all agent `coach`, announce telegram account `coach` → `8917837483`, tz from the travel-mode knob):
+
+| Job | id | Payload |
+|---|---|---|
+| Coach Morning (07:30) | `73c880ac` | command `~/projects/stoiclife/coach_morning.sh` (sets morning prompt state) |
+| Coach Evening Review (20:30) | `7e8a7edd` | command `~/.openclaw/workspace/scripts/evening-prompt.sh` (sets evening prompt state) |
+| Coach Weekly Review (Sun 08:00) | `5dcb0e1a` | command `cd ~/projects/stoiclife && out=$(python3 weekly_review.py --section both --channel telegram) \|\| exit 1; echo "${out:-NO_REPLY}"` |
+| Coach Safety-Net (11:00) | `700b6841` | agentTurn, the prompt below with `--channel telegram` on `stoiclife_run.py` + `record_coaching.py`, and "using exactly the bold markup the payload shows" instead of the `*Observation:*` wording |
+
+Command payloads deliver stdout verbatim (no model turn); `NO_REPLY` stays silent. Test a command job without touching prompt state: a one-shot copy with `--at +1m --delete-after-run --command-env STOICLIFE_SKIP_PROMPT_STATE=1`. `cron list` hides disabled jobs; check `cron_jobs` in `~/.openclaw/state/openclaw.sqlite`.
+
+Fitbit 07:00 / 10:00 failure alerts go to **both** WhatsApp and the coach bot (`accountId: "coach"` is required, or Telegram uses the Travelboard bot).
+
+**Known limits:** Telegram *tap* reactions don't reach the coach (rate by typing 👍/👎). Command-cron prompts aren't mirrored into the coach's session (`state.json` + prefixes carry attribution; the coach asks before saving an unprefixed reply).
+
+### Rollback to WhatsApp
+
+1. `echo whatsapp > ~/.openclaw/stoic/coaching-channel`
+2. `openclaw cron edit <id> --disable` for the four coach jobs above.
+3. `openclaw cron edit <id> --enable` for `12a4a4e5` (Stoic Evening Review) and `74b9acbe` (stoiclife Safety-Net).
+4. Restore Ewok's Stoic sections in `workspace/TOOLS.md` + `AGENTS.md` from `docs/ewok-stoic-sections-archived.md`. Check the 20,000-char bootstrap limit, then the gateway log.
+5. Optional: drop the Telegram copy from the Fitbit alerts (`~/.openclaw/cron/bak-coach-fitbit-20261006-005659.json` has the old messages). Full pre-cutover job backup: `~/.openclaw/cron/bak-coach-cutover-20261006-011509.json`.
+
+`~/.openclaw/stoic/stoic_knowledge.md` → `coach-workspace/stoic_knowledge.md` (was `workspace/stoic/stoic_knowledge.md`, identical content); either works for rollback.
+
+## WhatsApp cron — "stoiclife Safety-Net (11:00)" (DISABLED since 2026-10-06, kept for rollback)
 
 - Schedule: `0 11 * * *` Australia/Brisbane (after the 10:00 Fitbit catch-up).
 - `agentTurn` + `announce` → whatsapp `+61410772771`, session `isolated`, 300s timeout.
