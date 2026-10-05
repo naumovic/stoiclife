@@ -119,9 +119,11 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-06: Travelboard group allowlist stays `groupAllowFrom: []` for now.** The audit CRITICAL `channels.telegram.groups.allowFrom.missing` predates this work and is accepted. Revisit it before more travellers join or before going multi-user.
 
+- **2026-10-06: Health Snapshot moves to the coach bot** (confirmed by Mihajlo). It leaves the WhatsApp Morning Brief and goes out in the 07:30 coach message alongside the Stoic morning prep.
+
 ## Open questions for Mihajlo
 
-- (none open; Health Snapshot placement gets confirmed at the start of Phase 3)
+- (none open)
 
 ## Next step
 
