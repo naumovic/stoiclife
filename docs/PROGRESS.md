@@ -22,9 +22,9 @@ Rule: update this file after every completed step and commit it with the code. S
     - Verified: Telegram default + WhatsApp still connected, WhatsApp traffic flowing. No BOOTSTRAP/template files were seeded into the workspace.
   - [ ] Heartbeat is main-only. Last main heartbeat 23:23 (ok). **Check after the next one (~00:23):** `openclaw system heartbeat last` is newer, and `~/.openclaw/agents/coach/sessions/sessions.json` has no heartbeat/main key (only `agent:coach:phase1-test`).
 - [ ] **Phase 2: Telegram bot**
-  - [ ] Mihajlo creates the bot in @BotFather
-  - [ ] Token → `~/.openclaw/.env` `TELEGRAM_COACH_BOT_TOKEN`, referenced as `${TELEGRAM_COACH_BOT_TOKEN}`
-  - [ ] `channels.telegram.accounts` {default = current Travelboard bot moved verbatim, coach = allowlist [8917837483]} + `defaultAccount: "default"`
+  - [x] Mihajlo creates the bot in @BotFather (@stoiclife_coach_bot; `getMe` ok, 2026-10-05)
+  - [x] Token → `~/.openclaw/.env` `TELEGRAM_COACH_BOT_TOKEN`, referenced as `${TELEGRAM_COACH_BOT_TOKEN}` (`.env` is mode 664; propose chmod 600)
+  - [ ] `channels.telegram`: **top level left untouched** (= implicit `default` account, Travelboard) + `accounts.coach` {botToken `${…}`, dmPolicy allowlist [8917837483], groupPolicy disabled} + `defaultAccount: "default"`. Candidate validated; awaiting OK
   - [ ] Binding coach account → `coach` agent
   - [ ] Diff → approval → `config validate` → restart (with OK) → is-active, Travelboard DM + group OK, coach bot answers only Mihajlo in an `agent:coach:*` session
   - [ ] `openclaw security audit`, report and fix
@@ -80,6 +80,14 @@ Rule: update this file after every completed step and commit it with the code. S
 - Procedure: build the candidate in the scratchpad → `OPENCLAW_CONFIG_PATH=<candidate> ~/.npm-global/bin/openclaw config validate` → show the diff → ask → back up `openclaw.json.bak-coach-<ts>` → write → `is-active` + gateway log.
 - Heartbeat scope: "if any agent has a `heartbeat` block, only those agents run heartbeats" (`docs/gateway/heartbeat.md:120`), so `main` gets an explicit block.
 - A new agent reads through to `main`'s auth profiles (`concepts/multi-agent.md:32-35`).
+
+**Telegram multi-account internals (Phase 2, from 2026.6.8 source)**
+- Top-level `botToken` stays the implicit `default` account even when `accounts` exists (`account-selection-*.js` `hasImplicitDefaultTelegramAccount`).
+- `mergeTelegramAccountConfig` (`account-config-*.js`): multi-account mode only kicks in when `accounts` has **more than one** key; then each account takes `groups` **only** from its own block. Moving Travelboard into `accounts.default` beside `accounts.coach` would silently drop the `-5516645333` group config. That's why the top level stays put.
+- A named account inherits every other top-level key (dmPolicy, allowFrom, groupPolicy, network IPv4 fix, mediaMaxMb, defaultTo). `allowFrom` merges, so a restrictive top-level list wins over an account `*`.
+- Missing `${VAR}` produces only a **warning** at runtime (`resolveConfigForRead` `onMissing`), and `config validate` **does not check env refs** (a control test with an undefined var passed). The real check is `getMe` with the `.env` token.
+- The config loader re-reads `~/.openclaw/.env` on each load (`maybeLoadDotEnvForConfig`), so a hot reload sees vars added after gateway start.
+- Docs' reload table: `channels.*` and `bindings` hot-apply with no gateway restart.
 
 **Multi-user blockers (why it's deferred)**
 - DB `~/.openclaw/stoic/stoic_journal.db` has no `user_id` (`biometrics.date` is the PK).
