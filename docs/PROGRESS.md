@@ -74,9 +74,13 @@ Rule: update this file after every completed step and commit it with the code. S
   - [ ] Capture flow (`morning prep:` / `evening review:`, `mood N`, 👍/👎) works in the coach chat; check whether Telegram reactions reach the agent
     - Test plan (agreed 2026-10-06): use **real** entries, not synthetic ones. Synthetic entries would mean DB cleanup, and the global Supermemory plugin (no per-agent isolation, `config: {}`) would also capture the fake text. Morning/evening: after the WhatsApp prompt (which sets `state.json`), Mihajlo replies in the **Telegram coach chat** with the prefix + `mood N`. Then check the `journal_entries` row, the manual mood, the reply, and the `stoiclife_run --channel telegram` event.
     - [x] Typed 👍 (2026-10-06 01:03): the coach ran `record_reaction.py --usefulness 1 --reaction "👍"` → exit 3 "no delivered, unrated push within 18h". No write (journal 210 / events 232 / coaching 19 unchanged). Correct. It then tried a read-only query with invented column names, recovered with `SELECT *`, and replied sensibly.
-    - [ ] Tap reaction. Telegram default is `reactionNotifications: own`: a tap on a bot message becomes a system event `Telegram reaction added: 👍 … on msg N`, but only if `wasSentByBot` finds the msg in the sent-message cache. Cron/announce sends go through `send-*.js`, which calls `recordSentMessage`, so they should qualify. A skip is logged **only at verbose level** (`telegram: skipped reaction … (own mode, not sent by bot)`), so it's invisible in the normal log. The coach has no heartbeat, so a queued event may only surface on the next inbound message.
+    - [x] Tap reaction: **does not reach the coach** (tested 2026-10-06 01:03–01:10). Mihajlo tapped 👍 on the cron-sent test push (msg 9) twice and on a coach in-conversation reply, then sent "Ok". The full turn prompt in the trajectory has no `Telegram reaction added`; no agent session anywhere has one. The coach answered "Ok" with NO_REPLY (correct).
+      - Ruled out: the poller requests `message_reaction` (`resolveTelegramAllowedUpdates`). Routing would go to the coach session (`resolveAgentRoute` with accountId). The sent-message cache is keyed chatId+messageId in one global bucket per session store; that can give cross-bot false *matches*, not misses.
+      - Not yet ruled out: `authorizeTelegramEventSender` (mode reaction) rejecting, or Telegram not delivering the update to the coach bot. Both are visible only at verbose log level, which likely needs a gateway restart.
+      - Default position: parity with WhatsApp, where tap reactions never arrived either. **Typed 👍/👎 is the supported rating path.** Debugging tap reactions is optional, not a cutover blocker.
+    - Default value `reactionNotifications: own` and the code path, for reference: `bot-*.js` `bot.on("message_reaction")` → `wasSentByBot` → `authorizeTelegramEventSender` → `enqueueSystemEvent` (in-memory, not in `openclaw.sqlite`).
     - [x] Forgotten-prefix rule added to `coach-workspace/AGENTS.md` §1: no prefix + `state.json` awaiting + reads like an answer → ask once "Save this as your morning prep?"; save only on a clear yes.
-  - [ ] Dry run + one manual cron run delivered to the coach bot
+  - [x] Dry run + one manual cron run delivered to the coach bot: done during steps 2, 3 and 5 (one-shot copies of all four coach crons + the Fitbit alert, all delivered from `accountId=coach`).
 - [ ] **Phase 4: hard cutover (no parallel run)**
   - [ ] Disable (don't delete) the WhatsApp coaching crons; flip the flags
   - [ ] Rollback runbook in OPERATIONS.md (re-enable crons, flip flags back)
@@ -161,4 +165,10 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 6: capture flow in the coach chat. Check that `morning prep:` / `evening review:` replies, `mood N`, and 👍/👎 work in the Telegram coach chat, and whether Telegram tap-reactions reach the agent. This needs Mihajlo to send test messages. Decide on the unprefixed-reply context gap (step 2 finding). Be careful: a real save writes to the journal DB, so agree on a test entry/cleanup plan with Mihajlo first.
+Phase 3 step 6, last part: the real-entry test on 2026-10-06. After the 07:30 WhatsApp brief, Mihajlo replies in the **Telegram coach chat** with `morning prep: … mood N`; same at 20:30 with `evening review:`. Then check:
+- the `journal_entries` row: date linked to the prompt, `mood_source` manual
+- `update_entry` themes
+- the `trigger_events` row from `stoiclife_run --channel telegram`
+- the coach reply format
+
+Optionally also test the forgotten-prefix rule. When both pass, Phase 3 is complete → stop for approval before Phase 4 (cutover).
