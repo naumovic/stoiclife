@@ -66,7 +66,11 @@ Rule: update this file after every completed step and commit it with the code. S
       - telegram: sections gone and the stub was **not** called.
     - Verified live: weekly digest default is byte-identical; morning brief in telegram mode drops the sections and leaves `state.json` untouched. The live brief was **not** run in whatsapp mode, because it would write prompt state.
     - Rollback: `echo whatsapp > ~/.openclaw/stoic/coaching-channel` (or `rm` it) + re-enable the WhatsApp crons.
-  - [ ] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays
+  - [x] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays (applied 2026-10-06 00:56)
+    - All three alert points (07:00 `f4aadce7` step 3; 10:00 `697feda9` steps 3 + 4) get: "Then send the same alert text a second time with the message tool using channel: "telegram", accountId: "coach", target: "8917837483"… Send both; if one send fails, still attempt the other." Nothing else changed.
+    - `accountId` is required. Without it an isolated `main` turn falls back to the default Telegram account (the Travelboard bot): `readStringParam(params, "accountId") ?? agentAccountId`.
+    - Backup of both jobs before the edit: `~/.openclaw/cron/bak-coach-fitbit-20261006-005659.json`. Rollback: `cron edit <id> --message` with the backed-up `payload.message`.
+    - Test: a one-shot on `main` with the real step 3 wording and a stand-in command that always exits 3 (Gemini, 27 s). It retried, then sent both alerts: WhatsApp `Sent message 3EB0B2887435C7917E6665` at 00:58:29, Telegram `accountId=coach` msg 10 at 00:58:39. The real sync and the DB were not touched.
   - [ ] Capture flow (`morning prep:` / `evening review:`, `mood N`, 👍/👎) works in the coach chat; check whether Telegram reactions reach the agent
   - [ ] Dry run + one manual cron run delivered to the coach bot
 - [ ] **Phase 4: hard cutover (no parallel run)**
@@ -153,4 +157,4 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 5: Fitbit failure alerts get a coach-bot Telegram copy; the WhatsApp alert stays. The alerts are in the payload text of the Fitbit crons `f4aadce7` (07:00) and `697feda9` (10:00), step 3 "send a WhatsApp message using the message tool". Add a second send via telegram account `coach` → 8917837483. Show the diff and get approval before editing the cron payloads. Then find a way to test the alert path without a real sync failure.
+Phase 3 step 6: capture flow in the coach chat. Check that `morning prep:` / `evening review:` replies, `mood N`, and 👍/👎 work in the Telegram coach chat, and whether Telegram tap-reactions reach the agent. This needs Mihajlo to send test messages. Decide on the unprefixed-reply context gap (step 2 finding). Be careful: a real save writes to the journal DB, so agree on a test entry/cleanup plan with Mihajlo first.
