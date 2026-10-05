@@ -58,7 +58,14 @@ Rule: update this file after every completed step and commit it with the code. S
       - full path via `build_payload.py --event-id 226` + `coaching_format.py --channel telegram` (no record): Sonnet composed a valid `**Observation:**` message, delivered (msg 9), 44 s.
       - DB unchanged: `trigger_events` max id 232, `trigger_coaching` 19, `message_sent` 19.
     - Testing gotcha: a past firing date dry-runs as SILENT (cooldown), so the SEND_FULL path can only be exercised through `build_payload.py --event-id N`.
-  - [ ] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp)
+  - [x] Put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp). Applied 2026-10-06 00:54 (workspace repo, synced on its `main`).
+    - Knob: `~/.openclaw/stoic/coaching-channel` = `whatsapp` | `telegram`, read by the new `workspace/scripts/coaching-channel.sh`. Order: `$COACHING_CHANNEL` env → file → `whatsapp`. Unknown value → `whatsapp` + a stderr warning. **No file exists yet**, so behaviour is unchanged until Phase 4 writes `telegram`.
+    - On `telegram`, `morning-brief.sh` skips `set_prompt_state.py --session morning`, the Health Snapshot and Morning Prep (System + Calendar stay), and `weekly-digest.sh` skips `weekly_review.py`.
+    - Verified in a scratch copy with a stubbed `set_prompt_state.py`:
+      - default/bogus output identical to the original (brief: apart from the live RAM figure); the state stub was called.
+      - telegram: sections gone and the stub was **not** called.
+    - Verified live: weekly digest default is byte-identical; morning brief in telegram mode drops the sections and leaves `state.json` untouched. The live brief was **not** run in whatsapp mode, because it would write prompt state.
+    - Rollback: `echo whatsapp > ~/.openclaw/stoic/coaching-channel` (or `rm` it) + re-enable the WhatsApp crons.
   - [ ] Fitbit failure alerts: add a coach-bot Telegram copy; the WhatsApp alert stays
   - [ ] Capture flow (`morning prep:` / `evening review:`, `mood N`, 👍/👎) works in the coach chat; check whether Telegram reactions reach the agent
   - [ ] Dry run + one manual cron run delivered to the coach bot
@@ -146,4 +153,4 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-Phase 3 step 4: put the Stoic + Health sections of `morning-brief.sh` / `weekly-digest.sh` behind a flag (calendar/tasks stay on WhatsApp). The flag stays **on** (sections still sent on WhatsApp) until the Phase 4 cutover. Design the flag so one place flips it and rollback is a one-liner.
+Phase 3 step 5: Fitbit failure alerts get a coach-bot Telegram copy; the WhatsApp alert stays. The alerts are in the payload text of the Fitbit crons `f4aadce7` (07:00) and `697feda9` (10:00), step 3 "send a WhatsApp message using the message tool". Add a second send via telegram account `coach` → 8917837483. Show the diff and get approval before editing the cron payloads. Then find a way to test the alert path without a real sync failure.
