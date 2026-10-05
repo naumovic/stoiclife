@@ -27,7 +27,10 @@ Rule: update this file after every completed step and commit it with the code. S
   - [x] `channels.telegram`: **top level left untouched** (= implicit `default` account, Travelboard) + `accounts.coach` {botToken `${…}`, dmPolicy allowlist [8917837483], groupPolicy disabled} + `defaultAccount: "default"`. Applied 2026-10-05 23:59 (backup `openclaw.json.bak-coach-p2-20261005-235942`), hot-applied with **no gateway restart**. The log shows `[coach] starting provider (@stoiclife_coach_bot)` + `[default] starting provider (@ewok_trip_bot)`, no duplicate start, no errors. `channels status`: coach, default and WhatsApp all connected. `~/.openclaw/.env` chmod 600
   - [x] Binding coach account → `coach` agent
   - [x] Diff → approval → apply → is-active, both bots connected
-  - [ ] Live test: Mihajlo DMs @stoiclife_coach_bot → lands in an `agent:coach:*` session; Travelboard `/itinerary` DM still answers
+  - [x] Live test: Mihajlo DMs @stoiclife_coach_bot → lands in an `agent:coach:*` session; Travelboard `/itinerary` DM still answers (2026-10-06 00:07–00:10)
+    - Coach: `/start` + "how did I sleep?" → session `agent:coach:main` (telegram, account `coach`, direct, to 8917837483), model `claude-sonnet-4-6`, workspace `coach-workspace`. Coach persona; one read-only `sqlite3` query on `biometrics`; figures match (2026-10-05: 407 min, deep 68, HRV 36.4, RHR 70). Log shows inbound on `@stoiclife_coach_bot`, tool policy removing 22 tools, no errors. The duplicate assistant lines in the transcript are `delivery-mirror` entries, not double sends.
+    - Travelboard: `/itenerary` (typo) + a follow-up → `@ewok_trip_bot` → `agent:main:main` (account `default`, Gemini), ran `travelboard.py itinerary next` → "Nothing upcoming." Routing is unchanged. The follow-up's answer about the "last destination" was shaky, but that's Gemini on `main` and has nothing to do with this change.
+    - Isolation: nothing coach-related went into `agent:main:*`, and nothing Travelboard-related went into `agent:coach:*`.
   - [x] `openclaw security audit` (run after the change and against the pre-change backup)
     - Pre-existing CRITICAL `channels.telegram.groups.allowFrom.missing`: the Travelboard group's deliberate `groupAllowFrom: []` (travelboard OPERATIONS.md gotcha 5). Fix = per-sender list of travellers' numeric IDs. **Travelboard change → needs Mihajlo's decision.**
     - New WARN `tools.exec.fs_tools_disabled_but_exec_enabled` for `coach`: accepted for single user (only Mihajlo can reach it). Must be resolved before multi-user (sandbox `all` or a plugin-only toolset).
@@ -120,7 +123,6 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-1. Live tests: Mihajlo DMs @stoiclife_coach_bot; check the `agent:coach:*` session key. Mihajlo sends `/itinerary` to the Travelboard bot.
-2. Pending Phase 1 heartbeat check (after ~00:23).
-3. Mihajlo decides on the pre-existing audit CRITICAL (Travelboard group per-sender allowlist).
-4. Then stop for Phase 3 approval.
+1. Pending Phase 1 heartbeat check (after ~00:23): `openclaw system heartbeat last` returned `{}` at 00:13 and the log has no heartbeat run since 23:38, so re-check once 00:23 has passed. The coach `sessions.json` still only holds `phase1-test` + `main` (the Telegram DM), with no heartbeat key.
+2. Mihajlo decides on the pre-existing audit CRITICAL (Travelboard group per-sender allowlist).
+3. Then stop for Phase 3 approval.
