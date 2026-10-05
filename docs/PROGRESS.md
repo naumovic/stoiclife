@@ -10,7 +10,7 @@ Rule: update this file after every completed step and commit it with the code. S
   - [x] `docs/PROGRESS.md` (this file)
   - [x] `CLAUDE.md` pointer in stoiclife + `~/.openclaw/workspace/CLAUDE.md`
 - [x] **Phase 0: recon (read-only)** (findings below)
-- [x] **Phase 1: `coach` agent** (one heartbeat check pending)
+- [x] **Phase 1: `coach` agent**
   - [x] Draft `agents.list` (`main` default unchanged + `coach`, workspace `~/.openclaw/workspace-coach`); check every key against the 2026.6.8 docs
   - [x] Build the coach workspace: SOUL/AGENTS distilled from `workspace/TOOLS.md` "Stoic Journal" + `AGENTS.md` Stoic section, plus `stoic_knowledge.md` and the journal prompts
   - [x] Tool policy: keep `exec` (scripts need it); deny browser/web/write/edit etc.; no MEMORY.md; decide about Supermemory
@@ -20,8 +20,8 @@ Rule: update this file after every completed step and commit it with the code. S
     - Verified: `agents list` shows `main` (default) + `coach` (🧭 Coach, Sonnet, workspace `coach-workspace`).
     - Verified: an undelivered test turn (`openclaw agent --agent coach --session-key agent:coach:phase1-test`) reported exactly `read, exec, process, message, session_status`, gave the coach persona, and answered a sleep question with figures matching `biometrics` (2026-10-05: 407 min, HRV 36.4, RHR 70).
     - Verified: Telegram default + WhatsApp still connected, WhatsApp traffic flowing. No BOOTSTRAP/template files were seeded into the workspace.
-  - [ ] Heartbeat is main-only. Last main heartbeat 23:23 (ok). **Check after the next one (~00:23):** `openclaw system heartbeat last` is newer, and `~/.openclaw/agents/coach/sessions/sessions.json` has no heartbeat/main key (only `agent:coach:phase1-test`).
-- [ ] **Phase 2: Telegram bot**
+  - [x] Heartbeat is main-only. Verified 2026-10-06: the 00:23 heartbeat (14:23Z) ran in `agent:main:main` → `HEARTBEAT_OK`. The coach session files haven't been touched since 00:08, there's no `heartbeat poll` in any coach transcript, and `sessions.json` holds only `phase1-test` + `main`. Gotcha: `openclaw system heartbeat last` returned `{}` after the hot reloads and the gateway log doesn't record heartbeat runs, so the reliable signal is the `[OpenClaw heartbeat poll]` turn in the main transcript.
+- [x] **Phase 2: Telegram bot** (complete 2026-10-06)
   - [x] Mihajlo creates the bot in @BotFather (@stoiclife_coach_bot; `getMe` ok, 2026-10-05)
   - [x] Token → `~/.openclaw/.env` `TELEGRAM_COACH_BOT_TOKEN`, referenced as `${TELEGRAM_COACH_BOT_TOKEN}` (`.env` is mode 664; propose chmod 600)
   - [x] `channels.telegram`: **top level left untouched** (= implicit `default` account, Travelboard) + `accounts.coach` {botToken `${…}`, dmPolicy allowlist [8917837483], groupPolicy disabled} + `defaultAccount: "default"`. Applied 2026-10-05 23:59 (backup `openclaw.json.bak-coach-p2-20261005-235942`), hot-applied with **no gateway restart**. The log shows `[coach] starting provider (@stoiclife_coach_bot)` + `[default] starting provider (@ewok_trip_bot)`, no duplicate start, no errors. `channels status`: coach, default and WhatsApp all connected. `~/.openclaw/.env` chmod 600
@@ -127,5 +127,4 @@ Rule: update this file after every completed step and commit it with the code. S
 
 ## Next step
 
-1. Pending Phase 1 heartbeat check (after ~00:23): `openclaw system heartbeat last` returned `{}` at 00:13 and the log has no heartbeat run since 23:38, so re-check once 00:23 has passed. The coach `sessions.json` still only holds `phase1-test` + `main` (the Telegram DM), with no heartbeat key.
-2. Then stop for Phase 3 approval.
+Phase 3 approved 2026-10-06. Start with the formatters: make `coaching_format.py`, `build_payload.py`, `weekly_review.py` and `status.py` channel-aware, and add tests. Code only, on the branch. Show the diff before any cron or config change.
