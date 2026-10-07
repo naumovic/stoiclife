@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Coach morning message: Health Snapshot + Stoic morning prep, for the Telegram coach bot.
-# Run by the "Coach Morning (07:30)" command cron; stdout is delivered verbatim.
+# Coach morning message: yesterday's health line + Stoic morning prep, for the Telegram coach bot.
+# Run by the "Coach Morning (07:30)" command cron; stdout is delivered verbatim. Since FEAT-07
+# Phase 4 the message is sent by send_prompt.py (with buttons) and stdout is just NO_REPLY.
 #
 # The coaching half of ~/.openclaw/workspace/scripts/morning-brief.sh (calendar/system stay
 # on the WhatsApp brief). Keep the Health Snapshot block in step with the brief's until
@@ -18,33 +19,35 @@ if [ "${STOICLIFE_SKIP_PROMPT_STATE:-}" != "1" ]; then
   python3 "$WS_SCRIPTS/set_prompt_state.py" --session morning >/dev/null 2>&1 || true
 fi
 
-OUT=""
+# --- MESSAGE (FEAT-07 Phase 4 layout, D47) ---
+TITLE="☀️ Morning prep · $(TZ="$EWOK_TZ" date '+%a %-d %b')"
+YLABEL=$(TZ="$EWOK_TZ" date -d yesterday '+%a')
 
-# --- HEALTH SNAPSHOT (Fitbit biometrics: sleep/HRV/resting HR) ---
+# --- HEALTH (Fitbit biometrics, yesterday's row: the wearable hasn't synced today yet) ---
 YDAY=$(TZ="$EWOK_TZ" date -d yesterday '+%F')
 BIO=$(sqlite3 -separator '|' "$HOME/.openclaw/stoic/stoic_journal.db" \
-  "SELECT COALESCE(sleep_duration_min,''), COALESCE(deep_min,''), COALESCE(rem_min,''),
-          COALESCE(hrv_rmssd_ms,''), COALESCE(resting_hr_bpm,''), COALESCE(steps,'')
+  "SELECT COALESCE(sleep_duration_min,''), COALESCE(hrv_rmssd_ms,''), COALESCE(resting_hr_bpm,''),
+          COALESCE(steps,'')
    FROM biometrics WHERE date='${YDAY}';" 2>/dev/null || true)
-HEALTH=""
+PARTS=()
 if [ -n "$BIO" ]; then
-  IFS='|' read -r SLEEP_MIN DEEP REM HRV RHR STEPS <<< "$BIO"
-  if [ -n "$SLEEP_MIN" ]; then
-    HEALTH+="
-Sleep: $((SLEEP_MIN / 60))h$(printf '%02d' $((SLEEP_MIN % 60)))${DEEP:+ (deep ${DEEP}m}${REM:+, REM ${REM}m}${DEEP:+)}"
-  fi
-  [ -n "$HRV" ] && HEALTH+="
-HRV: ${HRV} ms${RHR:+ · Resting HR: ${RHR} bpm}"
-  [ -n "$STEPS" ] && HEALTH+="
-Steps (yesterday): ${STEPS}"
+  IFS='|' read -r SLEEP_MIN HRV RHR STEPS <<< "$BIO"
+  [ -n "$SLEEP_MIN" ] && PARTS+=("$((SLEEP_MIN / 60))h$(printf '%02d' $((SLEEP_MIN % 60))) sleep")
+  [ -n "$HRV" ] && PARTS+=("HRV ${HRV%.*} ms")
+  [ -n "$RHR" ] && PARTS+=("RHR ${RHR} bpm")
+  [ -n "$STEPS" ] && PARTS+=("$(printf "%'d" "$STEPS") steps")
 fi
-if [ -n "$HEALTH" ]; then
-  OUT+="🏃 Health Snapshot${HEALTH}
-
-"
+HEALTH=""
+if [ ${#PARTS[@]} -gt 0 ]; then
+  HEALTH="Yesterday (${YLABEL}): $(IFS='·'; echo "${PARTS[*]}" | sed 's/·/ · /g')"
 fi
 
-# --- STOIC MORNING PREP ---
-OUT+=$(cat "$HOME/.openclaw/workspace/stoic/prompts/morning_prompt.txt")
+# The prompt file's first line is its own title ("🌅 Morning Prep"); ours replaces it.
+PROMPTS=$(sed '1{/Morning Prep/d}' "$HOME/.openclaw/workspace/stoic/prompts/morning_prompt.txt" | sed '/./,$!d')
 
-echo "$OUT"
+OUT="$TITLE"
+[ -n "$HEALTH" ] && OUT+=$'\n'"$HEALTH"
+OUT+=$'\n\n'"$PROMPTS"$'\n\n'"Just type below to journal ↓"
+
+# Sends with buttons and prints NO_REPLY; on a failed send it prints $OUT (D51).
+printf '%s' "$OUT" | python3 "$HOME/projects/stoiclife/send_prompt.py" --session morning || echo "$OUT"

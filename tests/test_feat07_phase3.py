@@ -167,11 +167,11 @@ check("/mood -> card with exact rows in channelData (P3-D2)",
       datas(rep["channelData"]["telegram"]["buttons"])[0] == [f"sc:mood:{n}:20261008" for n in range(1, 6)], rep)
 check("/mood strips the telegram: prefix (P3-D8)", "Mood: 5 ✓" in rep["text"], rep["text"])
 check("/module -> same card", sc_dispatch.handle_command({"command": "module", "chatId": CHAT}, conn, NOW)["reply"]["text"] == rep["text"])
-for cmd in ("journal", "skip"):
-    check(f"/{cmd} still 'Coming soon' (P3-D5)",
-          "Coming soon" in sc_dispatch.handle_command({"command": cmd})["reply"]["text"])
+# /journal and /skip went live in Phase 4 (own tests in test_feat07_phase4.py).
+check("unknown command -> 'Coming soon'",
+      "Coming soon" in sc_dispatch.handle_command({"command": "nope"}, conn, NOW)["reply"]["text"])
 proc = subprocess.run([sys.executable, str(REPO / "sc_dispatch.py")],
-                      input=json.dumps({"kind": "command", "command": "skip"}), capture_output=True, text=True,
+                      input=json.dumps({"kind": "command", "command": "nope"}), capture_output=True, text=True,
                       env={**os.environ, "HOME": str(TMP)})
 check("CLI command output is {'reply': …}", proc.returncode == 0 and "reply" in json.loads(proc.stdout), proc.stdout + proc.stderr)
 proc = subprocess.run([sys.executable, str(REPO / "sc_dispatch.py")],

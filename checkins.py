@@ -156,6 +156,11 @@ def merge_into_entry(conn: sqlite3.Connection, entry_id: int, chat_id: str) -> d
         record_inline(conn, entry_id, chat_id)
     except ValueError:
         pass  # an out-of-range stored value never blocks the merge
+    try:  # FEAT-07 Phase 4 (D48): mark the matching prompt answered
+        import prompts
+        prompts.link_entry(conn, entry_id, chat_id)
+    except sqlite3.OperationalError:
+        pass  # migration 002 not applied (old scratch DBs)
     row = conn.execute(
         "SELECT date, mood_source, module, created_at FROM journal_entries WHERE id = ?",
         (entry_id,),

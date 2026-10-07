@@ -90,6 +90,9 @@ export default {
             accountId: ctx.accountId,
           });
           await applyActions(ctx.respond, out.actions);
+          // D44: a hold tap is passed on, so OpenClaw sends `callback_data: sc:hold:…` through
+          // the normal pipeline and the coach gets the held text via the route line.
+          if (out.passToAgent) return { handled: false };
         } catch (e) {
           log.error(`stoic-coach-ui: ${ctx.callback.data}: ${e?.message ?? e}`);
         }
@@ -125,23 +128,42 @@ export default {
         },
       });
     }
-    // P3-B1: save a pending note / "Tell me more" answer as the message arrives, before
-    // the LLM sees it (the coach once misread the message and skipped its step 0).
-    // Observe-only hook: the agent still gets the message and acks it.
-    api.on("message_received", async (event, ctx) => {
-      if (ctx?.channelId !== "telegram" || ctx?.accountId !== COACH_ACCOUNT) return;
+    // FEAT-07 Phase 4 (D41): route every coach-chat message in two hooks OpenClaw awaits.
+    // before_dispatch runs before the agent is dispatched: route_entry decides and records
+    // the route, and may handle the message outright (notes "Thanks, noted.", D42) or hold
+    // it for a confirm tap (D44). before_prompt_build runs before the model call and puts
+    // the recorded route (with the message text, D43) into the coach's prompt.
+    api.on("before_dispatch", async (event, ctx) => {
+      if (ctx?.channelId !== "telegram" || ctx?.accountId !== COACH_ACCOUNT || event?.isGroup) return;
       try {
-        await runDispatch({
-          kind: "message",
+        const out = await runDispatch({
+          kind: "dispatch",
           text: event.content ?? "",
-          chatId: event.from ?? ctx.conversationId,
-          messageId: event.messageId,
-          senderId: event.senderId,
+          replyToId: event.replyToId ?? ctx.replyToId,
+          chatId: ctx.conversationId ?? event.senderId,
+          sessionKey: ctx.sessionKey ?? event.sessionKey,
         });
+        if (out?.handled) return out.text ? { handled: true, text: out.text } : { handled: true };
       } catch (e) {
-        log.error(`stoic-coach-ui: message hook: ${e?.message ?? e}`);
+        log.error(`stoic-coach-ui: before_dispatch: ${e?.message ?? e}`);
       }
+      return; // not handled: the message goes to the coach as usual
     });
-    log.info("stoic-coach-ui: registered sc namespace + /mood /module /journal /skip + message hook");
+
+    api.on("before_prompt_build", async (_event, ctx) => {
+      if (ctx?.agentId !== "coach" || ctx?.trigger === "cron" || ctx?.trigger === "heartbeat") return;
+      try {
+        const out = await runDispatch({
+          kind: "inject",
+          sessionKey: ctx.sessionKey,
+          chatId: ctx.chatId ?? ctx.channelId,
+        });
+        if (out?.prependContext) return { prependContext: out.prependContext };
+      } catch (e) {
+        log.error(`stoic-coach-ui: before_prompt_build: ${e?.message ?? e}`);
+      }
+      return;
+    });
+    log.info("stoic-coach-ui: registered sc namespace, /mood /module /journal /skip, before_dispatch + before_prompt_build");
   },
 };

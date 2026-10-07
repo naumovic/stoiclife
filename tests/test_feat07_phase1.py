@@ -76,8 +76,8 @@ tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type=
 for t in ("checkin_events", "coaching_responses", "response_feedback", "ui_messages",
           "schema_migrations"):
     check(f"table {t} exists", t in tables)
-check("schema_migrations has one row",
-      conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 1)
+check("schema_migrations has one row per migration file",
+      conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == len(list((REPO / "migrations").glob("*.sql"))))
 # Applying the SQL a second time directly (lost schema_migrations row) is harmless.
 conn.executescript((REPO / "migrations" / "001_ux_tables.sql").read_text())
 check("001 SQL itself is idempotent", True)
@@ -181,11 +181,11 @@ out = sc_dispatch.handle_callback({"payload": "mood:2", "chatId": CHAT, "message
 check("stale picker (G5) -> expired edit", "expired" in out["actions"][0]["text"], out)
 check("stale picker writes nothing",
       conn.execute("SELECT COUNT(*), MAX(updated_at) FROM checkin_events").fetchone() == before)
-for p in ("write:morning", "bogus:1", "mood:99"):  # fb:* is live since Phase 2 (own tests)
+for p in ("bogus:1", "mood:99", "skip:noon"):  # fb:* live since Phase 2, write/skip since Phase 4
     out = sc_dispatch.handle_callback({"payload": p, "chatId": CHAT, "messageId": 1}, conn, now)
     check(f"{p} -> no actions (logged)", out == {"actions": []}, out)
-check("unbuilt commands answer 'coming soon'",
-      "Coming soon" in sc_dispatch.handle_command({"command": "journal"})["reply"]["text"])
+check("unknown commands answer 'coming soon'",
+      "Coming soon" in sc_dispatch.handle_command({"command": "nope"}, conn, now)["reply"]["text"])
 
 
 # --- tg helpers -------------------------------------------------------------------

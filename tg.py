@@ -240,3 +240,12 @@ def take_consumed(text: str, *, chat_id: str | None = None, max_age_s: int = 600
     state["consumed"].pop(chat_id, None)
     write_state(state, path)
     return mark if age <= max_age_s else None
+
+
+def clear_legacy_prompt(session: str, path: Path | None = None) -> None:
+    """Reset the legacy awaiting-response keys if they point at `session` (skip, D48)."""
+    state = read_state(path)
+    if state.get("session") == session and state.get("awaiting_response"):
+        state.update({"awaiting_response": False, "session": None, "prompt_sent_at": None})
+        write_state(state, path)
+        log("INFO", f"legacy prompt state cleared for {session}")

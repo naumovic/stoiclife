@@ -8,18 +8,27 @@ Scripts referenced below live in two places (use these absolute paths verbatim):
 
 ## 1. Journal entries (the main job)
 
-**Reading the message.** OpenClaw may show recent chat history (`#N … name: text` lines) before his message. His current message is the text **after the last `#N` history line**, even when no blank line separates it. Never conclude he sent nothing.
+**Every message from him comes with a route line** at the top of your context, written by the stoiclife plugin before you run (you never decide the session yourself):
 
-**Step 0, every message that does not start with `morning prep:` / `evening review:` or `/`:** run this **first, before anything else** (no reading state.json, no other command), even if the message looks empty, odd or unrelated:
-`printf '%s' "<his message, verbatim>" | python3 /home/mihajlo/projects/stoiclife/save_pending_note.py --text-stdin`.
-If it prints `SAVED`, it was his answer to "What would have been more useful?" or a mood/module note he asked to add: reply with one short thanks ("Thanks, noted.") and stop. If it prints `NONE`, carry on below.
+```
+[stoiclife route #N] ENTRY session=morning source=window. …
+His message:
+<<<
+…his exact text…
+>>>
+```
 
-A message is a journal entry when it **starts with** `morning prep:` or `evening review:` (case-insensitive). Anything else is normal conversation (section 3), with one exception:
+- **`ENTRY session=<morning|evening>`** → it's a journal entry for that session. Use the text between `<<<` and `>>>` **verbatim** as the entry (the plugin already removed any `morning prep:` / `evening review:` prefix). Go to step 2.
+- **`CONVERSATION`** → not a journal entry. Answer the text between `<<<` and `>>>` per section 3. (If it came from a 💬 / ❓ button, that text is the message he held back: answer it now.)
+- **`ASK session=…`** → ask him in one line whether to save that text as his morning prep / evening review; save it only on a clear yes (then step 2, same text).
+- **`NONE recorded`** → the plugin couldn't route it. Treat it as conversation, and if it reads like a journal entry, suggest `/journal`. Don't save anything on a guess.
 
-- **Forgotten prefix.** If a message has no prefix, read `/home/mihajlo/.openclaw/stoic/state.json`. If `awaiting_response` is `true` and the message reads like an answer to that prompt (a reflection on the day, not a question or a request), ask once: "Save this as your morning prep?" (or "evening review?", per the state's `session`). Save it only on a clear yes, using the original message text, then continue from step 2. Never save on a guess, and don't ask again for the same message.
+Always take his message from the route line, never from the chat history shown above it (OpenClaw glues his message onto the history; that once lost a message). If a turn starts with `callback_data: sc:…`, that's a button tap passed on to you: the route line holds the real message.
 
-1. Strip the prefix. Keep the rest of the text exactly as written, including any inline `mood N` and `module:<name>`.
-2. Save: `python3 /home/mihajlo/.openclaw/workspace/scripts/save_entry.py --session <morning|evening> --response "<text>"`
+Notes, "Tell me more" answers, button taps and `/mood` `/module` `/journal` `/skip` are handled by the plugin without you.
+Scheduled (cron) turns have no route line: follow section 4.
+
+2. Save: `python3 /home/mihajlo/.openclaw/workspace/scripts/save_entry.py --session <morning|evening> --response "<text>"` (session and text from the route line)
    - Its stdout is just the new row id. If it reports no pending prompt, re-run the same command with `--force` (the entry is still saved; a warning goes to the log).
    - An inline `mood N` / `mood:N` (1–10) at the start **or end** of the entry is parsed by `save_entry.py` as a manual mood. It always wins.
    - An inline `module:<name>` (start or end, before or after mood) calls a Stoic module from `STOIC-MODULES.md`: happiness, creativity, emotions. `save_entry.py` strips it and stores it on the entry.
