@@ -7,7 +7,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - **Phase:** 2 (feedback buttons), **in progress** (P2.0–P2.8 done; P2.9 pending). The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
 - **Branch:** `feat07-phase2-feedback` (from `main` @ e81e8c9). Don't push unless asked.
 - **Last done:** Phase 1 merged to `main`; this tracker created.
-- **Next:** P2.9 live acceptance (button taps now; agent wiring on the next real journal entry). The coach chat needs `/new` so it reloads AGENTS.md.
+- **Next:** P2.9b: verify the next real journal entry (07:30 morning prep 2026-10-08) went out via send_coaching with buttons, once. Then phase summary → merge on approval.
 
 ## Live state pointers
 
@@ -62,7 +62,8 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P2.6** `coach-workspace/AGENTS.md` §1 step 0 + step 6/7, §2 (7.5k chars). ⚠️ The coach workspace *is* this repo dir, so the checked-out branch's AGENTS.md is what's live.
 - [x] **P2.7** Cron `700b6841` message → `record_coaching … --send`, then `NO_REPLY` (exit 3 → reply the text). Backup `~/.openclaw/cron/bak-feat07-p2-safetynet-20261007-225138.json`
 - [x] **P2.8** `tests/test_feat07_phase2.py` 43/43; phase1 67/67 (fb now live); existing suites green. `tg.py` gained a `STOICLIFE_TG_FAKE` test hook.
-- [ ] **P2.9** Live acceptance with Mihajlo (👍, 👎 → reason, Tell me more → note, `t` usefulness, no double send)
+- [x] **P2.9a** Live button acceptance (2026-10-07 22:56–22:58): 👍 on a `t` push → `✓ Noted 👍`, trigger_coaching/events usefulness +1 via record_reaction; 👎 on an `r` reply → 2×2 reasons → Tell me more → question + pending `fb_more:r2` → typed note saved by step 0 (`SAVED`), single "Thanks, noted." (second transcript copy = delivery-mirror); no agent turn on taps. Test rows removed, push 19 restored to unrated.
+- [ ] **P2.9b** Agent wiring on a real journal entry (next 07:30 morning prep): reply arrives once, with 👍/👎, row in `coaching_responses` with data_flags; check `stoic.log` + coach transcript.
 - [ ] Phase summary for review (incl. any workspace files touched); merge on approval
 
 ## Phase 3: Mood/module buttons + commands
