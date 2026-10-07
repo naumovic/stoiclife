@@ -10,10 +10,10 @@ This file is the **spec**. Live progress (current phase, branch, step checkboxes
 | Phase | Status |
 |---|---|
 | 0 — Discovery | ✅ Merged (`docs/CURRENT-STATE.md`) |
-| 1 — Foundation | ✅ Merged to `main` (not pushed) |
-| 2 — Feedback buttons | ✅ Merged to `main` (not pushed). Live check: first real 07:30 / 20:30 replies |
-| 3 — Check-in card | ✅ Merged to `main` at `26c9311` (not pushed). Bug P3-B1 fixed (D39). Live check: real `/mood` use |
-| 4 — Morning/evening routing | 🔨 In progress: decisions D41–D52 agreed 2026-10-07 |
+| 1 — Foundation | ✅ Merged to `main`, pushed |
+| 2 — Feedback buttons | ✅ Merged to `main`, pushed. Live check: first real 07:30 / 20:30 replies |
+| 3 — Check-in card | ✅ Merged to `main` at `26c9311`, pushed. Bug P3-B1 fixed (D39). Live check: real `/mood` use |
+| 4 — Morning/evening routing | ✅ Merged to `main` and pushed (2026-10-08). Live check: first real prompt day |
 | 5 — 11am update | Not started |
 | 6 — Instrumentation | Not started |
 

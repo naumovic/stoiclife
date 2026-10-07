@@ -4,10 +4,10 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 
 ## ▶ Resume here
 
-- **Phase:** 4 built, live and accepted (P4.8), **awaiting Mihajlo's OK to merge**. Open: bug P4-B1 (verify the "always reply" fix on the next casual message).
-- **Branch:** `feat07-phase4-noprefix`, checked out, so it's what the coach runs. Don't push unless asked.
-- **Watch 2026-10-08:** 07:30 morning prompt (new layout + buttons, sent by `send_prompt.py`); typing after it → morning entry without a prefix; 20:30 evening via `coach_evening.sh`; the 11:00 safety-net unchanged.
-- **Note:** plugin `index.js` changes need a gateway restart; Python ones don't.
+- **Phase:** 5 (11am update), **not started**. Its spec step 1 is "understand first": document the current 11:00 safety-net + FEAT-05 behaviour, propose the smallest change, check against the code, and get Mihajlo's OK before coding.
+- **Branch:** `main` is checked out (Phases 0–4 merged and pushed to `origin`). Create `feat07-phase5-11am` from `main` when starting.
+- **Open:** bug P4-B1, verify the coach replies to a bare "thanks" (route-line fix in place). Watch the first real Phase 4 day (2026-10-08): 07:30 prompt with buttons, plain-text morning entry, after-11:00 hold, 20:30 evening via `coach_evening.sh`.
+- **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. Plugin `index.js` changes need a gateway restart; Python ones don't.
 
 ## Live state pointers
 
@@ -90,7 +90,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [x] **P3.8 Bug P3-B1: typed note not saved.** OpenClaw appends the inbound text to the recent-history block with no separator (`#82 … test card.\n\nRockin`); the coach read "Rockin" as part of msg 82, skipped step 0 and replied `NO_REPLY`. **Fix:** the plugin's `message_received` hook (coach account) pipes every non-command, non-prefixed message to `sc_dispatch.py` (kind `message`) → `save_pending_note.save_note(from_hook=True)` saves deterministically and leaves a `consumed` marker in state.json; the coach's step 0 on the same text (≤10 min) answers `SAVED` from it. AGENTS.md: "his message is the text after the last `#N` line", step 0 runs first, never `NO_REPLY` to him unless a script sent the reply. Gateway restart 23:25. **Live 23:27:** hook saved the note at :28.696, step 0 got SAVED at :32.7, one "Thanks, noted."; a normal "Ok then" → hook `saved=False`, step 0 `NONE`, normal reply. Tests phase3 48/48.
 - [x] Phase summary (PROGRESS.md 2026-10-07); merged to main
 
-## Phase 4: Morning/evening without prefixes ✅ built + live-accepted (awaiting merge OK)
+## Phase 4: Morning/evening without prefixes ✅ (merged + pushed 2026-10-08)
 
 ### Answers to Opus's two questions (2026-10-07)
 - **Where the D32 layout fix lives:** only in our repo. `sc_dispatch.py` returns `channelData.telegram.buttons` (a supported `ReplyPayload` field that OpenClaw prefers over presentation), and `plugin/stoic-coach-ui/index.js` passes the reply through. Nothing in the OpenClaw install has changed: `find ~/.npm-global/lib/node_modules/openclaw -newermt 2026-10-06` → 0 files; the newest file there dates from the 2026-06-20 install. Upgrade risk: `channelData.telegram.buttons` is a channel-specific field and could change in a new release, so add "`/mood` shows a 2×5 card" to the post-upgrade checks.
@@ -127,7 +127,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [x] **P4.7 notes** Live DB migrated (backup `stoic_journal.db.bak-mig002-20261007-235648`); evening cron `7e8a7edd` → `coach_evening.sh` (backup `~/.openclaw/cron/bak-feat07-p4-evening-20261007-235652.json`); restart 23:57, all channels back; one-shot command cron ran `coach_evening.sh` → one outbound (msg 105, buttons), run `ok`/`not-delivered` (NO_REPLY suppressed: D5/D51 verified).
 - [x] **P4.8** Live acceptance 2026-10-08 00:01–00:06: `Was today a good day?` → hold buttons → ❓ → coach answered the held question (route #2 via the synthetic tap); plain text → evening entry 215 + one coaching reply with 👍/👎, prompt linked; `/skip` → nothing to skip; note → saved + "Thanks, noted." by the plugin, the coach never saw it. Every route recorded by `before_dispatch` then injected by `before_prompt_build` (session-key match, 0.2–0.4 s apart). Late holds (after 11:00 / 03:00) covered by unit tests only (same component). Test data removed.
 - [ ] **Bug P4-B1:** the coach answered `Thanks` (CONVERSATION route) with `NO_REPLY`. The route line now says "always reply, even to a bare thanks; never NO_REPLY here" (Python only, no restart). Verify on the next casual message.
-- [ ] Phase summary; merge on approval
+- [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed
 
 ## Phase 5: 11am update
 - [ ] Current 11:00 + FEAT-05 behaviour documented; smallest change proposed (D17)
