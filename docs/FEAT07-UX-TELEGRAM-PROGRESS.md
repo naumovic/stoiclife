@@ -87,7 +87,8 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P3.4** Plugin shim: pass the dispatcher reply object through (text, channelData, presentation)
 - [x] **P3.5** `tests/test_feat07_phase3.py` 33/33; phase1 67/67 (card semantics), phase2 43/43 (rename); existing suites green
 - [x] **P3.6** Gateway restart 2026-10-07 23:14 (shim pass-through live); `is-active`, plugin registered, WhatsApp + both Telegram bots back
-- [ ] **P3.7** Live acceptance: `/mood` → 2×5 card; mood + module taps re-render; note via "Add a note"; an old card → expired; no agent turn on taps or commands; test rows cleaned
+- [x] **P3.7** Live acceptance 2026-10-07 23:16–23:19: `/mood` in the menu → 2×5 card; mood + module taps re-render in place; old card → expired; `/journal` → Coming soon; no agent turn on taps/commands. **Except the note:** see bug P3-B1. Test rows cleaned.
+- [ ] **P3.8 Bug P3-B1: typed note not saved.** OpenClaw appends the inbound text to the recent-history block with no separator (`#82 … test card.\n\nRockin`). The coach read "Rockin" as part of msg 82, decided it had no message, skipped step 0 and replied `NO_REPLY`, so the note was lost and no ack was sent. Same risk for "Tell me more" and for Phase 4's route_entry step. Proposed fix: deterministic save in the plugin's `message_received` hook (coach account) + AGENTS.md hardening; needs one restart.
 - [ ] Phase summary; merge on approval
 
 ## Phase 4: Morning/evening without prefixes
