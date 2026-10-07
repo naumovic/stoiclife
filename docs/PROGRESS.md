@@ -171,6 +171,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-07: FEAT-06 Stoic modules.** Inline `module:<name>` (start or end, before or after mood) calls a module from `coach-workspace/STOIC-MODULES.md` (1 Happiness, 2 Creativity, 3 Emotions; aliases incl. number + `hapiness`; colon required). Parser `workspace/scripts/stoic_modules.py`; `save_entry.parse_inline_tags` strips both tokens in any order and stores `journal_entries.module` (new column, `db_init.py`; DB backup `stoic_journal.db.bak-feat06-20261007-103224`). `coach_context.py` appends a `=== STOIC MODULE … (requested, weight this) ===` block; coach `AGENTS.md` weights 1–2 of its principles, and on SEND_FULL sends module coaching first, then the stoiclife message. Unknown name → left in text, coach lists the modules. Tests `tests/test_stoic_modules.py` 29/29; scratch-DB end-to-end verified. Pending: first live `module:` entry. Later (optional): module counts in the weekly review.
 
+- **2026-10-07: FEAT-07 (coach Telegram UX: buttons/keyboard/state routing) Phase 0 discovery.** `docs/CURRENT-STATE.md`: crons, inbound path, parsing locations, DB schema/counts, OpenClaw 2026.6.8 capability check. Plugin callback handler YES (`registerInteractiveHandler`, namespace `sc`, auto-ack), edit YES, silent send YES (CLI only), **ForceReply NO, reply keyboard NO**, reply-to metadata YES (but `inbound_claim` only for plugin-bound conversations), voice YES/unverified. 7 plan mismatches listed there (mood 1–10 vs 1–5, evening review, no coaching response id, …). No code/data changed.
+
 ## Open questions for Mihajlo
 
 - (none open)
