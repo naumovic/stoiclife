@@ -15,7 +15,7 @@ This file is the **spec**. Live progress (current phase, branch, step checkboxes
 | 3 — Check-in card | ✅ Merged to `main` at `26c9311`, pushed. Bug P3-B1 fixed (D39). Live check: real `/mood` use |
 | 4 — Morning/evening routing | ✅ Merged to `main` and pushed (2026-10-08). Live check: first real prompt day |
 | 5 — 11am update | ✅ Merged to `main` and pushed (2026-10-08). Live check during self-test |
-| 6 — Instrumentation | Not started |
+| 6 — Instrumentation | 🔨 `ux_metrics.py` merged and pushed (2026-10-08); legacy prefix removal after a week of zero use |
 
 > **v4.2 (Code, 2026-10-08):** Phase 5 decisions D53–D60. **v4.1 (Code, 2026-10-07):** Phase 4 decisions D41–D52 recorded after Code's review and Mihajlo's answers. **v4 changes:** Phases 2–3 merged; D39 (plugin captures pending text on arrival) and D40 (Phase 4 routing decided by the plugin, not by the agent running a script) added; Phase 4 rewritten accordingly. **v3 changes:** Phase 2 and 3 revised after Code's pre-implementation review (D22–D38); D18 corrected. Earlier **v2 changes:** updated after the full Phase 0 findings (`docs/CURRENT-STATE.md`). Decisions D1–D21 are recorded in the next section. Main changes: 1–10 mood scale, evening review in scope, no ForceReply, reply keyboard or voice, free text still goes to the agent but its routing is decided by a deterministic script, and the 11am update builds on the existing trigger engine.
 

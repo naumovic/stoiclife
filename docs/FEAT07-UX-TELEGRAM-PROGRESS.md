@@ -4,9 +4,10 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 
 ## ▶ Resume here
 
-- **Phase:** 5 built and live on branch `feat07-phase5-11am` (checked out, so it's what runs). **Next:** check the first real 11:00 run (P5.3b), then merge on Mihajlo's OK.
-- **Open:** bug P4-B1 (coach replies to a bare "thanks"?); first real Phase 4 day (2026-10-08).
-- **Rollback (Phase 5):** `openclaw cron edit 700b6841 --enable` and `--disable` `80be6ec8` + `522605b8` (OPERATIONS.md).
+- **Status (2026-10-08):** Phases 0–5 merged and pushed; Phase 6 metrics merged and pushed. **Self-test running** (two weeks from 2026-10-08). Mihajlo: treat anything found as bugs, fix freely.
+- **Branch:** `main` (create `fix/<topic>` branches for bug fixes). Push when a fix is done and tested.
+- **Watch / open:** first real 11:00 update (P5.3b); bug P4-B1 (coach replies to a bare "thanks"?); a flagged day's CLARIFY / SEND_FULL path end to end; late-morning hold after 11:00; legacy prefix removal after a week of zero use.
+- **Metrics:** `python3 ux_metrics.py 2026-10-08 $(date +%F)`.
 - **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. Plugin `index.js` changes need a gateway restart; Python ones don't.
 
 ## Live state pointers
@@ -162,6 +163,7 @@ Missing pieces get buttons: `No morning entry yet` → `[✍️ Write entry]`; `
 - [ ] **P5.3b (watch, in self-test)** First real 11:00 run (2026-10-08): silent update with last night's data; engine ran; check `daily_updates`, `stoic.log`, `cron_run_logs`. A flagged day (CLARIFY/SEND_FULL) is verified when it happens.
 - [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed (Mihajlo: merge now, treat issues found in self-test as bugs)
 
-## Phase 6: Self-test metrics
-- [ ] `ux_metrics.py` against the live DB
-- [ ] Legacy prefix removal (separate change, after a week of zero use)
+## Phase 6: Self-test metrics 🔨 metrics live (2026-10-08); legacy removal waits on the self-test
+- [x] `ux_metrics.py <from> <to> [--json]` (repo root; spec said `scripts/`, this repo keeps scripts at the root). Read-only (`mode=ro`). Reports: completion + skip per session, median prompt → entry, mood/module logging rate by source, feedback rate + 👍 share by kind / session / flagged vs unflagged (+ 👎 reasons), entries by input method (from `route_events`; older entries → "before routing"), daily-update outcomes. Tests `tests/test_feat07_phase6.py` 15/15.
+- [ ] Self-test (two weeks from 2026-10-08): run `python3 ux_metrics.py 2026-10-08 <today>` and log bugs in `docs/PROGRESS.md`.
+- [ ] Legacy prefix removal: only after a week with zero `legacy prefix` entries in the metrics (and zero `legacy_prefix` check-ins). Separate, reviewed change.

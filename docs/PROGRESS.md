@@ -184,6 +184,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-08: FEAT-07 Phase 5 (11am update) done, merged and pushed** (spec D53–D60). The 11:00 job is now a **command cron** (`80be6ec8`) running `daily_update.py`, with a 12:00 re-check (`522605b8`); the old agentTurn `700b6841` is disabled (backup in `~/.openclaw/cron/`). Today's row synced (sleep + score) → engine runs → silent "📊 Last night … / This morning …" update with ✍️ / 🙂 buttons for missing pieces; CLARIFY's 🧭 line is sent directly; SEND_FULL starts a coach turn via `openclaw agent` in session `agent:coach:stoiclife-11am-<date>` (verified live: NO_REPLY suppressed, one-line delivery once). Not synced → one silent line, engine postponed; still missing at 12:00 → no engine run, `not_synced`, and later entry-time runs that day classify on journal data only (D60). Guards: no route line for `stoiclife-*` sessions; `record_coaching --send` refuses an already-sent event. Migration 003 `daily_updates` (backup `bak-mig003-20261008-002638`). Tests phase5 33/33, all suites green. Merged before the first real 11:00 run at Mihajlo's request; issues found in the self-test are treated as bugs.
 
+- **2026-10-08: FEAT-07 Phase 6 metrics merged and pushed.** `ux_metrics.py <from> <to> [--json]` (read-only) reports prompt completion/skip and median time to entry, check-in rates by source, feedback rate and 👍 share by kind/session/flagged, entries by input method, and daily-update outcomes. Tests 15/15. Self-test runs two weeks from 2026-10-08; legacy prefix removal only after a week of zero use.
+
 ## Open questions for Mihajlo
 
 - (none open)
