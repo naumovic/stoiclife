@@ -5,7 +5,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 ## ▶ Resume here
 
 - **Phase:** 2 (feedback buttons), **planned, not started**. The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
-- **Branch:** `feat07-phase2-feedback` (from `main` @ a2726ee). Don't push unless asked.
+- **Branch:** `feat07-phase2-feedback` (from `main` @ e81e8c9). Don't push unless asked.
 - **Last done:** Phase 1 merged to `main`; this tracker created.
 - **Next:** get Mihajlo's go → P2.0 live checks (bold via CLI, `NO_REPLY` in a DM turn).
 
