@@ -117,7 +117,9 @@ def health_check(cfg: dict, result, today_bio, now: datetime | None = None) -> d
 
     # --- Hard: biometrics fresh (the matrix's lag-resolved row) ---
     lag = result.deltas.get("bio_lag_days")
-    if today_bio is None:
+    if result.deltas.get("journal_only"):  # FEAT-07 D54
+        bio_ok, bio_detail = False, "today's biometrics not synced (journal-only read)"
+    elif today_bio is None:
         bio_ok, bio_detail = False, f"no biometrics row within {max_lag}d"
     else:
         bio_ok = True

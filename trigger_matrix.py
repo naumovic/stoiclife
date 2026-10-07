@@ -160,6 +160,63 @@ def _decide_state(moodc, mood, physical_high, physical_drain, physical_fumes,
     return "neutral", []
 
 
+def mental_signal(cfg: dict, session: str, entries: dict):
+    """Mood (from the evaluated session) and keyword matches (up to it) for the day.
+
+    Returns (mood, mood_session, matched_rattled, matched_fumes, matched_drain, summary).
+    """
+    order = ["morning", "evening"]
+    if session in ("evening", "safety-net"):
+        considered = [s for s in order if s in entries]
+    else:  # morning
+        considered = [s for s in order[:1] if s in entries]
+    if not considered:  # fall back to whatever exists
+        considered = list(entries.keys())
+
+    mood_session = session if session in entries else considered[-1]
+    mood = entries[mood_session]["mood_score"]
+
+    scan_text = " ".join(
+        f"{entries[s]['raw_response'] or ''} {entries[s]['processed_themes'] or ''}"
+        for s in considered
+    )
+    kw = cfg["keywords"]
+    summary = f"mood {mood} ({mood_session})" if mood is not None else "mood not yet inferred"
+    return (mood, mood_session, scan_keywords(scan_text, kw["rattled_but_ready"]),
+            scan_keywords(scan_text, kw["running_on_fumes"]),
+            scan_keywords(scan_text, kw["system_drain"]), summary)
+
+
+def not_synced_day(conn, target_date: str) -> bool:
+    """FEAT-07 D54: the daily update logged this day `not_synced` (still no biometrics at
+    the 12:00 re-check). False when the table doesn't exist (pre-migration-003 DBs)."""
+    try:
+        return conn.execute("SELECT 1 FROM daily_updates WHERE local_date = ? AND status = 'not_synced' "
+                            "LIMIT 1", (target_date,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
+def classify_journal_only(cfg: dict, target_date: str, session: str, entries: dict) -> Result:
+    """FEAT-07 D54: classify a not-synced day on the journal alone, with no biometric deltas.
+
+    Every divergence state (and sweet spot) needs a physical signal, so a journal-only
+    read can't fire: it records mood + keywords for the audit and lands on neutral.
+    """
+    phys = "biometrics not synced today (D54): journal-only, no deltas"
+    deltas = {"journal_only": True}
+    if not entries:
+        return Result(target_date, session, "insufficient_data", phys, "no journal entry", deltas,
+                      notes="today's journal entry missing; D54 journal-only day")
+    mood, _, m_r, m_f, m_d, summary = mental_signal(cfg, session, entries)
+    if mood is None:
+        return Result(target_date, session, "insufficient_data", phys, summary, deltas,
+                      notes="mood_score not yet inferred; D54 journal-only day")
+    matched = sorted(set(m_r) | set(m_f) | set(m_d))
+    return Result(target_date, session, "neutral", phys, summary, deltas, matched_keywords=matched,
+                  confidence=0, notes="D54: day logged not_synced; classified on journal data only")
+
+
 def classify(cfg: dict, target_date: str, session: str,
              today_bio: sqlite3.Row | None, baseline: list[sqlite3.Row],
              entries: dict[str, sqlite3.Row], sleep_mod: dict | None = None,
@@ -236,27 +293,8 @@ def classify(cfg: dict, target_date: str, session: str,
     physical_summary = ", ".join(phys_bits)
 
     # --- Mental signal (mood from the evaluated session; keywords up to it) ---
-    order = ["morning", "evening"]
-    if session in ("evening", "safety-net"):
-        considered = [s for s in order if s in entries]
-    else:  # morning
-        considered = [s for s in order[:1] if s in entries]
-    if not considered:  # fall back to whatever exists
-        considered = list(entries.keys())
-
-    mood_session = session if session in entries else considered[-1]
-    mood = entries[mood_session]["mood_score"]
-
-    scan_text = " ".join(
-        f"{entries[s]['raw_response'] or ''} {entries[s]['processed_themes'] or ''}"
-        for s in considered
-    )
-    kw = cfg["keywords"]
-    matched_rattled = scan_keywords(scan_text, kw["rattled_but_ready"])
-    matched_fumes = scan_keywords(scan_text, kw["running_on_fumes"])
-    matched_drain = scan_keywords(scan_text, kw["system_drain"])
-
-    mental_summary = f"mood {mood} ({mood_session})" if mood is not None else "mood not yet inferred"
+    mood, mood_session, matched_rattled, matched_fumes, matched_drain, mental_summary = \
+        mental_signal(cfg, session, entries)
 
     # --- Guard: entry exists but mood_score not yet inferred (Issue-001) ---
     # The event-driven eval (AGENTS.md step 6) can read the just-saved row before
@@ -402,6 +440,16 @@ def evaluate(conn, cfg: dict, target_date: str, session: str | None, write: bool
     """
     if now is None:
         now = datetime.now(TZ)
+    # FEAT-07 D54: once the daily update has logged this day `not_synced`, any later
+    # engine run that day (evening review, late morning prep) classifies on the journal
+    # only: no push off stale biometrics. Normal days keep the 2-day tolerance, which a
+    # 07:30 morning entry relies on (it always runs before the sync).
+    if not_synced_day(conn, target_date):
+        entries = fetch_entries(conn, target_date)
+        session = resolve_session(entries, session)
+        result = classify_journal_only(cfg, target_date, session, entries)
+        event_id = write_event(conn, result, False, False) if write else None
+        return result, False, False, event_id
     today_bio = fetch_biometrics_today(conn, target_date, cfg.get("biometrics_max_lag_days", 0))
     anchor_date = today_bio["date"] if today_bio is not None else target_date
     baseline = fetch_baseline_rows(conn, anchor_date, cfg["rolling_window_days"])

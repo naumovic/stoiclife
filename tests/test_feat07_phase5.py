@@ -210,5 +210,60 @@ check("record_coaching --send refuses an already-sent event (NO_REPLY, nothing s
       and conn.execute("SELECT COUNT(*) FROM trigger_coaching WHERE event_id = ?", (ev,)).fetchone()[0] == 0,
       r.stdout + r.stderr)
 
+# --- D54 extension: entry-time runs on a not_synced day are journal-only ---------------------------
+import trigger_matrix  # noqa: E402
+from status import health_check  # noqa: E402
+
+DB2 = TMP / "d54.db"
+with sqlite3.connect(DB2) as c:
+    c.executescript(schema)
+subprocess.run([sys.executable, str(REPO / "migrate.py"), "--db", str(DB2), "--no-backup"], check=True, capture_output=True)
+c2 = trigger_matrix.connect(str(DB2))
+mcfg = trigger_matrix.load_config(REPO / "stoiclife_config.json")
+with c2:  # baseline 01–06 normal; 07 is a drained night (HRV down, RHR up); no row for 08/09
+    for d in ("01", "02", "03", "04", "05", "06"):
+        c2.execute("INSERT INTO biometrics (date, hrv_rmssd_ms, resting_hr_bpm, sleep_duration_min, sleep_score) "
+                   "VALUES (?, 50, 50, 450, 85)", (f"2026-10-{d}",))
+    c2.execute("INSERT INTO biometrics (date, hrv_rmssd_ms, resting_hr_bpm, sleep_duration_min, sleep_score) "
+               "VALUES ('2026-10-07', 40, 60, 300, 50)")
+    for day, session in (("2026-10-08", "evening"), ("2026-10-08", "morning"), ("2026-10-09", "morning"),
+                         ("2026-10-10", "evening")):
+        c2.execute("INSERT INTO journal_entries (date, session, raw_response, mood_score, created_at) "
+                   "VALUES (?, ?, 'drained and exhausted, no energy', 3, ?)", (day, session, f"{day}T20:40:00+10:00"))
+EVE = datetime(2026, 10, 8, 20, 40, tzinfo=TZ)
+
+res, fired, _, ev_ctl = trigger_matrix.evaluate(c2, mcfg, "2026-10-08", "evening", write=False, now=EVE)
+check("control: without not_synced, the stale (lag-1) row drives a firing state",
+      res.state == "system_drain" and fired and res.deltas.get("bio_lag_days") == 1, (res.state, fired, res.deltas.get("bio_lag_days")))
+
+with c2:
+    c2.execute("INSERT INTO daily_updates (chat_id, local_date, status, synced, created_at, updated_at) "
+               "VALUES (?, '2026-10-08', 'not_synced', 0, 'x', 'x')", (CHAT,))
+res, fired, cd, ev = trigger_matrix.evaluate(c2, mcfg, "2026-10-08", "evening", write=True, now=EVE)
+row = c2.execute("SELECT state, fired, notes FROM trigger_events WHERE id = ?", (ev,)).fetchone()
+check("evening entry after not_synced -> journal-only: neutral, never fires (D54)",
+      res.state == "neutral" and not fired and res.deltas == {"journal_only": True}, (res.state, fired, res.deltas))
+check("…mood and keywords still read for the audit", res.mental_summary == "mood 3 (evening)"
+      and {"drained", "exhausted", "no energy"} <= set(res.matched_keywords), (res.mental_summary, res.matched_keywords))
+check("…event logged with the D54 note", row["state"] == "neutral" and row["fired"] == 0 and "D54" in row["notes"], dict(row))
+h = health_check(mcfg, res, trigger_matrix.fetch_biometrics_today(c2, "2026-10-08", 2), now=EVE)
+check("…health line is a warning that says 'not synced', never 🟢 all ok",
+      not h["ok"] and "not synced" in h["checks"]["biometrics_fresh"]["detail"], h["checks"]["biometrics_fresh"])
+
+late, fired, _, _ = trigger_matrix.evaluate(c2, mcfg, "2026-10-08", "morning", write=False,
+                                            now=datetime(2026, 10, 8, 13, 0, tzinfo=TZ))
+check("late morning prep (FEAT-05 time) on a not_synced day -> journal-only, no fire",
+      late.state == "neutral" and not fired and late.deltas.get("journal_only"), (late.state, fired))
+
+normal, fired, _, _ = trigger_matrix.evaluate(c2, mcfg, "2026-10-09", "morning", write=False,
+                                              now=datetime(2026, 10, 9, 7, 45, tzinfo=TZ))
+check("normal 07:30 entry unaffected: uses yesterday's data via the 2-day tolerance",
+      not normal.deltas.get("journal_only") and normal.deltas.get("hrv_delta_pct") is not None
+      and normal.deltas.get("bio_lag_days") == 2 and normal.state == "system_drain", (normal.state, normal.deltas))
+check("…and still evaluate-only at 07:45 (FEAT-04), as before", not fired)
+res10, fired10, _, _ = trigger_matrix.evaluate(c2, mcfg, "2026-10-10", "evening", write=False,
+                                               now=datetime(2026, 10, 10, 20, 40, tzinfo=TZ))
+check("not_synced on one day doesn't leak to another day", not res10.deltas.get("journal_only"))
+
 print(f"\n{total - failures}/{total} passed")
 sys.exit(1 if failures else 0)
