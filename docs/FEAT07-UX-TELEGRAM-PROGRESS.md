@@ -4,10 +4,10 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 3 (mood/module buttons + commands), **not started**. Plan it and check it against the code (incl. G18 3-per-row, P2-D5-style text edits), then get Mihajlo's OK before coding.
-- **Branch:** create `feat07-phase3-checkins` from `main`. Don't push unless asked.
-- **Last done:** Phase 2 merged (feedback buttons live on every coaching reply and push).
-- **Watch:** first real entries on 2026-10-08 (07:30 morning, 11:00 safety-net if it fires, 20:30 evening). Each should arrive once, with 👍/👎. Treat anything odd as a Phase 2 bug.
+- **Phase:** 3 (mood/module buttons + commands), **planned, awaiting Mihajlo's OK** on P3-D1..D9 below. No code yet.
+- **Branch:** `feat07-phase3-checkins` (from `main` @ 985a066). Don't push unless asked.
+- **Last done:** Phase 2 merged; Phase 3 planned + checked against the code.
+- **Watch:** first real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2 bug.
 - **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live.
 
 ## Live state pointers
@@ -67,9 +67,28 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P2.9b** Agent wiring, via a throwaway entry (2026-10-07 23:03): save → context → update → stoiclife_run (HOLD_QUIET) → `send_coaching --kind r` → agent `NO_REPLY`; one outbound message (81) with 👍/👎; `data_flags_json` filled (event 239). Test rows + the quiet-hours hold deleted. Tomorrow's real entries = confirmation; anything odd is logged as a bug.
 - [x] Phase summary (PROGRESS.md 2026-10-07); no workspace scripts or gateway config touched; merged to main
 
-## Phase 3: Mood/module buttons + commands
-- [ ] Planned and checked against code (incl. G18 3-per-row layout, plain-text edit issue as in P2-D5)
-- [ ] Built, tested, live-accepted, merged
+## Phase 3: Mood/module buttons + commands 📝 planned (awaiting Mihajlo's OK)
+
+### Discrepancies vs plan v2 (proposed fixes)
+- **P3-D1 One check-in card, not separate pickers.** "Keep the unchosen picker visible" only works if mood and module share a message. `/mood` and `/module` both send the same card: a status line (`Mood: 7 ✓ · Module: Creativity ✓`), mood 1–5 / 6–10, the three modules, and `📝 Add a note` once something is chosen. Every tap re-renders the whole card from the DB, so it is deterministic and never built from the callback's plain text (P2-D5 lesson).
+- **P3-D2 2×5 mood rows are possible for command replies** (G18 resolved for them): `channelData.telegram.buttons` takes precedence over presentation (`resolveTelegramInlineButtons`). Script-sent cards (Phase 4/5) stay 3-per-row unless they're sent another way; decide then.
+- **P3-D3 The plugin shim drops `channelData`.** It returns only `text`/`presentation` for commands, so **one `index.js` change + one gateway restart** is needed (G8 assumed none). Make the shim pass the dispatcher's reply object through untouched, so later phases need no further restart.
+- **P3-D4 Stale cards from commands can't be caught by `ui_messages`.** The framework sends command replies, so we never learn their message id (G5 only works for script sends). Fix: card buttons carry the day, `sc:mood:7:20261008` / `sc:mod:creativity:20261008` / `sc:note:mood:20261008` (≤ 30 bytes). A tap whose day isn't today → card edited to "expired, use /mood". The plan's suffix-less forms stay accepted (→ `ui_messages`, else today).
+- **P3-D5 `/journal` and `/skip` depend on Phase 4.** An `adhoc` pending state means nothing until `route_entry.py` exists, and skipping needs the prompt messages Phase 4 creates. Keep them "Coming soon" until Phase 4.
+- **P3-D6 Legacy `mood N` / `module:x` → `checkin_events` needs no workspace edit.** `checkins.merge_into_entry` (already called by `save_entry.py`) also records the entry's inline values as `legacy_prefix`, stamped with the **entry's `created_at`**. If it were stamped "now", the G9 rule would treat it as newer than the entry and leak the morning's inline mood onto the evening entry.
+- **P3-D7 "Add a note" needs the step-0 script to handle `note:*` too.** Rename `save_feedback_note.py` → `save_pending_note.py` (handles `fb_more:*` and `note:<mood|module>` → `checkin_events.note` on today's row) and update the AGENTS.md step 0 path. One pending slot per chat, so a newer intent replaces an older one (e.g. a note tap cancels an unanswered "Tell me more").
+- **P3-D8 Command chat id arrives as `telegram:8917837483`.** The dispatcher strips the `telegram:` prefix (the Phase 1 shim passes `ctx.from`).
+- **P3-D9 Acceptance "a same-day entry picks up the button mood" was already met in Phase 1** (G9), with Q1 = no. Re-verified in tests, not rebuilt.
+
+### Steps
+- [ ] **P3.1** `checkins.py`: `record_inline()` (legacy_prefix @ entry created_at, called from `merge_into_entry`), `set_note()`, `today_state()`
+- [ ] **P3.2** `sc_dispatch.py`: card render; `mood`/`mod` with optional `:YYYYMMDD`, re-render on tap; stale-day guard; `note:<t>[:day]` → pending `note:<t>` (2h) + "Add your note below."; `/mood` `/module` → card via `channelData.telegram.buttons`; chat-id normalise; `/journal` `/skip` stay "Coming soon"
+- [ ] **P3.3** `save_pending_note.py` (rename + `note:*`); AGENTS.md step 0 path
+- [ ] **P3.4** Plugin shim: pass the dispatcher reply object through (text, channelData, presentation)
+- [ ] **P3.5** `tests/test_feat07_phase3.py` + update phase 1/2 tests; all suites green
+- [ ] **P3.6** Quiet-window gateway restart (shim change); `is-active` + all channels back; `/mood` shows in the menu
+- [ ] **P3.7** Live acceptance: `/mood` → 2×5 card; mood + module taps re-render; note via "Add a note"; an old card → expired; no agent turn on taps or commands; test rows cleaned
+- [ ] Phase summary; merge on approval
 
 ## Phase 4: Morning/evening without prefixes
 - [ ] Planned and checked against code (`route_entry.py`, reply-to availability, D5 `NO_REPLY` for command crons G11)
