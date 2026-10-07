@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FEAT-03 Step 2 — unit tests for save_entry.parse_manual_mood.
+"""FEAT-03 Step 2 — unit tests for save_entry.parse_manual_mood (start + end token).
 
 save_entry.py lives in the shared OpenClaw scripts dir, not this repo, so we add
 it to sys.path and import the pure parse function (importing is side-effect free —
@@ -28,12 +28,26 @@ CASES = [
     ("mood 1, rough night",                 1,    "rough night",      "manual",   False),  # min boundary
     # defensive: a leading session prefix is stripped before the anchor test
     ("evening review: mood 6 — ok day",     6,    "ok day",           "manual",   False),
+    # --- valid manual moods at the END of the entry ---
+    ("routine with the kids. mood:7",       7,    "routine with the kids.", "manual", False),  # 2026-10-07 real entry
+    ("Will take a good rest.\nMood 6",      6,    "Will take a good rest.", "manual", False),  # 2026-10-06 real entry
+    ("ok day — mood 7",                     7,    "ok day",           "manual",   False),
+    ("solid day, mood: 8.",                 8,    "solid day",        "manual",   False),
+    ("great session mood 10!",              10,   "great session",    "manual",   False),
+    ("rough night mood 1  ",                1,    "rough night",      "manual",   False),
+    ("morning prep: steady start. mood 5",  5,    "steady start.",    "manual",   False),
+    # start wins over end
+    ("mood 4 - meh, later felt like mood 8", 4,   "meh, later felt like mood 8", "manual", False),
     # --- token-like but out of range / malformed: ignore, fall back to inference ---
+    ("long day. mood 11",                   None, "long day. mood 11", "inferred", True),
     ("mood 12 way too high",                None, "mood 12 way too high", "inferred", True),
     ("mood 0",                              None, "mood 0",           "inferred", True),
     # --- not a manual mood at all: text preserved verbatim, inference runs ---
     ("mood swings all day",                 None, "mood swings all day", "inferred", False),
     ("today was just fine",                 None, "today was just fine", "inferred", False),
+    ("my mood 7 hours in was low",          None, "my mood 7 hours in was low", "inferred", False),  # mid-sentence
+    ("bad mood",                            None, "bad mood",         "inferred", False),
+    ("good mood 7am onwards",               None, "good mood 7am onwards", "inferred", False),
 ]
 
 

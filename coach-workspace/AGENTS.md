@@ -15,7 +15,7 @@ A message is a journal entry when it **starts with** `morning prep:` or `evening
 1. Strip the prefix. Keep the rest of the text exactly as written, including any inline `mood N`.
 2. Save: `python3 /home/mihajlo/.openclaw/workspace/scripts/save_entry.py --session <morning|evening> --response "<text>"`
    - Its stdout is just the new row id. If it reports no pending prompt, re-run the same command with `--force` (the entry is still saved; a warning goes to the log).
-   - An inline `mood N` (1–10) is parsed by `save_entry.py` as a manual mood. It always wins.
+   - An inline `mood N` / `mood:N` (1–10) at the start **or end** of the entry is parsed by `save_entry.py` as a manual mood. It always wins.
 3. Context: `python3 /home/mihajlo/.openclaw/workspace/scripts/coach_context.py --entry-id <id>` (last 3 days of entries).
 4. Compose, yourself (no other API call), using the context and the principles in `SOUL.md` (detail in `stoic_knowledge.md` if needed):
    - **coaching_text:** 3–5 sentences of Stoic coaching. Name patterns across the 3-day window. End with one short practical question or next step.

@@ -167,6 +167,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-06: Health Snapshot moves to the coach bot** (confirmed by Mihajlo). It leaves the WhatsApp Morning Brief and goes out in the 07:30 coach message alongside the Stoic morning prep.
 
+- **2026-10-07: manual mood also accepted at the END of an entry.** The first real Telegram entries put it last (`... with the kids. mood:7`, a final `Mood 6` line), so the start-only parser ignored them and they were saved as inferred. `save_entry.parse_manual_mood` now checks the end too (a start token wins; mid-sentence still never matches). Tests: `tests/test_manual_mood.py` 26/26. Entries 212/213 set to `manual` (6/7) and the token removed from the text; DB backup `stoic_journal.db.bak-moodend-20261007-101914`.
+
 ## Open questions for Mihajlo
 
 - (none open)
