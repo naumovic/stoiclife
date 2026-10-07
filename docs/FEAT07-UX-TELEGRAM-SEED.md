@@ -7,7 +7,7 @@ The blueprint for FEAT-07. Mihajlo's plan v2 is reproduced verbatim further down
 | Phase | Branch | Status |
 |---|---|---|
 | 0 Discovery | `feat07-phase0-current-state` | ✅ done, merged to main (44c5a11) |
-| 1 Foundation | `feat07-phase1-foundation` | 🔨 built + live; awaiting tap test + review |
+| 1 Foundation | `feat07-phase1-foundation` | ✅ acceptance passed 2026-10-07; awaiting your review |
 | 2 Feedback buttons | — | not started |
 | 3 Mood/module buttons + commands | — | not started |
 | 4 Morning/evening without prefixes | — | not started |
