@@ -78,6 +78,9 @@ COLUMN_MIGRATIONS = {
     # is owned by OpenClaw's db_init; stoiclife only adds this column.
     "journal_entries": [
         ("mood_source", "TEXT DEFAULT 'inferred'"),
+        # FEAT-06: Stoic module called inline (`module:emotions`), canonical
+        # lowercase name from coach-workspace/STOIC-MODULES.md; NULL = none.
+        ("module", "TEXT"),
     ],
     # FEAT-01 Part A: self-computed nightly sleep score (0-100), NULL when a
     # night lacks stage data. Usually already present on the live DB.

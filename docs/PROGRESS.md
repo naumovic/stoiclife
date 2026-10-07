@@ -169,6 +169,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-07: manual mood also accepted at the END of an entry.** The first real Telegram entries put it last (`... with the kids. mood:7`, a final `Mood 6` line), so the start-only parser ignored them and they were saved as inferred. `save_entry.parse_manual_mood` now checks the end too (a start token wins; mid-sentence still never matches). Tests: `tests/test_manual_mood.py` 26/26. Entries 212/213 set to `manual` (6/7) and the token removed from the text; DB backup `stoic_journal.db.bak-moodend-20261007-101914`.
 
+- **2026-10-07: FEAT-06 Stoic modules.** Inline `module:<name>` (start or end, before or after mood) calls a module from `coach-workspace/STOIC-MODULES.md` (1 Happiness, 2 Creativity, 3 Emotions; aliases incl. number + `hapiness`; colon required). Parser `workspace/scripts/stoic_modules.py`; `save_entry.parse_inline_tags` strips both tokens in any order and stores `journal_entries.module` (new column, `db_init.py`; DB backup `stoic_journal.db.bak-feat06-20261007-103224`). `coach_context.py` appends a `=== STOIC MODULE … (requested, weight this) ===` block; coach `AGENTS.md` weights 1–2 of its principles, and on SEND_FULL sends module coaching first, then the stoiclife message. Unknown name → left in text, coach lists the modules. Tests `tests/test_stoic_modules.py` 29/29; scratch-DB end-to-end verified. Pending: first live `module:` entry. Later (optional): module counts in the weekly review.
+
 ## Open questions for Mihajlo
 
 - (none open)

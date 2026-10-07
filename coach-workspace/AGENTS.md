@@ -12,21 +12,24 @@ A message is a journal entry when it **starts with** `morning prep:` or `evening
 
 - **Forgotten prefix.** If a message has no prefix, read `/home/mihajlo/.openclaw/stoic/state.json`. If `awaiting_response` is `true` and the message reads like an answer to that prompt (a reflection on the day, not a question or a request), ask once: "Save this as your morning prep?" (or "evening review?", per the state's `session`). Save it only on a clear yes, using the original message text, then continue from step 2. Never save on a guess, and don't ask again for the same message.
 
-1. Strip the prefix. Keep the rest of the text exactly as written, including any inline `mood N`.
+1. Strip the prefix. Keep the rest of the text exactly as written, including any inline `mood N` and `module:<name>`.
 2. Save: `python3 /home/mihajlo/.openclaw/workspace/scripts/save_entry.py --session <morning|evening> --response "<text>"`
    - Its stdout is just the new row id. If it reports no pending prompt, re-run the same command with `--force` (the entry is still saved; a warning goes to the log).
    - An inline `mood N` / `mood:N` (1–10) at the start **or end** of the entry is parsed by `save_entry.py` as a manual mood. It always wins.
+   - An inline `module:<name>` (start or end, before or after mood) calls a Stoic module from `STOIC-MODULES.md`: happiness, creativity, emotions. `save_entry.py` strips it and stores it on the entry.
 3. Context: `python3 /home/mihajlo/.openclaw/workspace/scripts/coach_context.py --entry-id <id>` (last 3 days of entries).
 4. Compose, yourself (no other API call), using the context and the principles in `SOUL.md` (detail in `stoic_knowledge.md` if needed):
    - **coaching_text:** 3–5 sentences of Stoic coaching. Name patterns across the 3-day window. End with one short practical question or next step.
    - **mood_score:** 1–10 inferred from today's entry only (1 = distressed, 10 = thriving). If the mood is already manual, still pass a value; the script keeps the manual one.
+   - **Stoic module:** if the context ends with a `=== STOIC MODULE: … ===` block, Mihajlo asked for that lens, so weight it. Build coaching_text around the 1–2 principles from that block that fit the entry best, name them in plain words, still read the 3-day pattern, and make the closing step one in that module's spirit. 3–6 sentences. Don't list all the principles.
+   - **Unknown module:** if the saved text still contains `module:<something>` (the name wasn't recognised), add one line: "Modules available: happiness, creativity, emotions." Coach as normal.
    - **themes:** 2–5 single words, from or close to: control, patience, resilience, distraction, gratitude, memento-mori, virtue, family, work, health, clarity, frustration, acceptance.
 5. Store: `python3 /home/mihajlo/.openclaw/workspace/scripts/update_entry.py --entry-id <id> --mood-score <n> --themes "<a,b,c>"`
 6. stoiclife check: `python3 /home/mihajlo/projects/stoiclife/stoiclife_run.py --session <morning|evening> --entry-id <id> --channel telegram`
    - **Always pass `--entry-id`.** A late reply is back-dated, and without the id the wrong day gets evaluated.
    - **Always pass `--channel telegram`.** It makes the printed format use Telegram bold (`**x**`), because on Telegram `*x*` shows as italic.
    - Follow its `# AGENT:` lines. In short:
-     - `SEND_FULL` → compose the stoiclife message in the strict format it prints, record it with the printed `record_coaching.py` command (fix and retry once if rejected), and send that **instead of** coaching_text.
+     - `SEND_FULL` → compose the stoiclife message in the strict format it prints, record it with the printed `record_coaching.py` command (fix and retry once if rejected), and send that **instead of** coaching_text. **Exception: if a Stoic module was requested,** send the module coaching_text first, then the stoiclife message unchanged, so the module reply is never lost.
      - `CLARIFY` → send coaching_text, then the printed 🧭 line.
      - `SILENT` / `HOLD_QUIET` → send coaching_text, plus any `STOICLIFE_STATUS:` line appended verbatim as the last line.
 7. Reply with the final text only. Don't send a separate "entry saved" message unless a step failed. If a script fails, say which step failed in one line, and don't pretend it saved.

@@ -83,6 +83,12 @@
     "min": 1,
     "max": 10
   },
+  "stoic_modules": {
+    "_comment": "FEAT-06: inline `module:<name>` at the start or end of a journal entry (before or after mood). Parsed in workspace scripts/stoic_modules.py; framework + aliases in `path` (one `## N · Name` section per module). Known module => journal_entries.module = canonical name, token stripped; unknown => left in text, logged. coach_context.py prints the module's principles for the coach to weight.",
+    "enabled": true,
+    "keyword": "module",
+    "path": "~/projects/stoiclife/coach-workspace/STOIC-MODULES.md"
+  },
   "status_signal": {
     "_comment": "FEAT-02: appends a health-checked status line to the silent-day Stoic coach reply so silence is legible. 🟢 all ok = eval ran + biometrics fresh + last night's sleep_score present; ⚠️ heads up otherwise (never a false 'all ok'). spo2_soft_check keeps SpO2 informational — NULL is normal some nights and must not downgrade to a warning. ok_emoji deliberately differs from the ✅ 'Stoic entry saved' tick. GRACE WINDOW (added 2026-06-20): on today's row (lag 0) a NULL sleep_score before sleep_score_grace_until is treated as 'pending', not ⚠️ — the 07:00 primary sync usually beats Fitbit's overnight upload, so the score isn't derived until the 10:00 catch-up sync; a journal entry in that gap was drawing a false warning. Cutoff sits between the 10:00 catch-up and the 11:00 safety-net, so a genuinely stuck recompute still warns at/after 11:00 and every evening. sleep_grace_enabled=false restores strict behaviour.",
     "enabled": true,

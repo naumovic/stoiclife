@@ -5,7 +5,7 @@ Only these tools exist for the coach: `exec`, `process`, `read`, `message`, `ses
 **Python:** always `python3` with **absolute** script paths. Your cwd is this workspace, not the scripts' directory.
 
 **Data (read-only via sqlite3, except through the scripts):** `~/.openclaw/stoic/stoic_journal.db`
-- `journal_entries`: id, date, session (morning|evening), raw_response, processed_themes, mood_score, mood_source
+- `journal_entries`: id, date, session (morning|evening), raw_response, processed_themes, mood_score, mood_source, module (Stoic module called inline, NULL if none; framework in `STOIC-MODULES.md` in this workspace)
 - `biometrics`: one row per date: hrv_rmssd_ms, deep_sleep_rmssd_ms, resting_hr_bpm, sleep_duration_min, minutes_awake, light_min, deep_min, rem_min, sleep_score, steps, spo2_avg/min/max
 - `trigger_events` / `trigger_coaching`: stoiclife's detections and delivered pushes
 
