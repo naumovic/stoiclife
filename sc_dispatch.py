@@ -431,7 +431,8 @@ def route_line(row: dict) -> str:
         head += (f"ASK session={session}. Ask him in one line whether to save the message below as "
                  f"his {SESSION_LABEL[session]}; save it only on a clear yes.")
     else:
-        head += "CONVERSATION. Not a journal entry: answer the message below as the coach (AGENTS.md §3)."
+        head += ("CONVERSATION. Not a journal entry: answer the message below as the coach (AGENTS.md §3). "
+                 "Always reply, even to a bare 'thanks' (one short line is fine); never NO_REPLY here.")
     return f"{head}\nHis message:\n<<<\n{text}\n>>>"
 
 
