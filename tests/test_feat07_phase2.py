@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """FEAT-07 Phase 2 — feedback buttons: send_coaching (stdin, data flags),
-record_coaching --send, sc_dispatch fb/fbr/noop, save_feedback_note, record_feedback.
+record_coaching --send, sc_dispatch fb/fbr/noop, save_pending_note, record_feedback.
 
 Scratch DB + scratch config + temp HOME; sends go to a fake (STOICLIFE_TG_FAKE), so
 nothing reaches Telegram, the live DB, the live log or the live state.json.
@@ -22,7 +22,7 @@ sys.path.insert(1, str(SCRIPTS))
 
 import checkins  # noqa: E402
 import record_feedback  # noqa: E402
-import save_feedback_note  # noqa: E402
+import save_pending_note  # noqa: E402
 import sc_dispatch  # noqa: E402
 import tg  # noqa: E402
 from _tz import TZ  # noqa: E402
@@ -195,18 +195,18 @@ check("unknown target -> buttons cleared, nothing stored",
       tap("fb:r9999:up") == {"actions": [{"type": "clearButtons"}]} and fb("r", 9999) == [])
 check("noop -> nothing", tap("noop") == {"actions": []})
 
-# --- P2.4 save_feedback_note ------------------------------------------------------------
-check("note saved while fb_more pending", save_feedback_note.save_note("Name the trade-off.", CHAT, conn))
+# --- P2.4 save_pending_note ------------------------------------------------------------
+check("note saved while fb_more pending", save_pending_note.save_note("Name the trade-off.", CHAT, conn))
 check("note stored on the t rating", fb("t", T1) == [("down", "more", "Name the trade-off.")], fb("t", T1))
 check("pending cleared after the note", tg.get_pending(CHAT) is None)
-check("next message -> NONE (normal handling)", not save_feedback_note.save_note("hello", CHAT, conn))
+check("next message -> NONE (normal handling)", not save_pending_note.save_note("hello", CHAT, conn))
 tg.set_pending(f"fb_more:r{R1}", chat_id=CHAT, expires_at=datetime.now(TZ) - timedelta(minutes=1))
-check("expired fb_more -> NONE", not save_feedback_note.save_note("late", CHAT, conn))
+check("expired fb_more -> NONE", not save_pending_note.save_note("late", CHAT, conn))
 tg.set_pending("morning", chat_id=CHAT)
-check("other pending kind -> NONE", not save_feedback_note.save_note("entry", CHAT, conn))
+check("other pending kind -> NONE", not save_pending_note.save_note("entry", CHAT, conn))
 tg.clear_pending(CHAT)
 (HOME / ".openclaw" / "stoic" / "state.json").write_text("{}")
-r = run("save_feedback_note.py", "--text-stdin", stdin="hi")
+r = run("save_pending_note.py", "--text-stdin", stdin="hi")
 check("CLI with nothing pending prints NONE", r.returncode == 0 and r.stdout.strip() == "NONE", r.stdout + r.stderr)
 
 # --- P2.5 record_feedback (typed legacy) -------------------------------------------------

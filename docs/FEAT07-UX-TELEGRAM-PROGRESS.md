@@ -4,7 +4,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 3 (mood/module buttons + commands), **planned, awaiting Mihajlo's OK** on P3-D1..D9 below. No code yet.
+- **Phase:** 3 (mood/module buttons + commands), **in progress**: P3.1–P3.5 done; next P3.6 restart + P3.7 live test. Until the restart, `/mood` replies are empty (the old shim drops `reply`); taps work.
 - **Branch:** `feat07-phase3-checkins` (from `main` @ 985a066). Don't push unless asked.
 - **Last done:** Phase 2 merged; Phase 3 planned + checked against the code.
 - **Watch:** first real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2 bug.
@@ -67,7 +67,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P2.9b** Agent wiring, via a throwaway entry (2026-10-07 23:03): save → context → update → stoiclife_run (HOLD_QUIET) → `send_coaching --kind r` → agent `NO_REPLY`; one outbound message (81) with 👍/👎; `data_flags_json` filled (event 239). Test rows + the quiet-hours hold deleted. Tomorrow's real entries = confirmation; anything odd is logged as a bug.
 - [x] Phase summary (PROGRESS.md 2026-10-07); no workspace scripts or gateway config touched; merged to main
 
-## Phase 3: Mood/module buttons + commands 📝 planned (awaiting Mihajlo's OK)
+## Phase 3: Mood/module buttons + commands 🔨 in progress (OK'd 2026-10-07)
 
 ### Discrepancies vs plan v2 (proposed fixes)
 - **P3-D1 One check-in card, not separate pickers.** "Keep the unchosen picker visible" only works if mood and module share a message. `/mood` and `/module` both send the same card: a status line (`Mood: 7 ✓ · Module: Creativity ✓`), mood 1–5 / 6–10, the three modules, and `📝 Add a note` once something is chosen. Every tap re-renders the whole card from the DB, so it is deterministic and never built from the callback's plain text (P2-D5 lesson).
@@ -81,11 +81,11 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - **P3-D9 Acceptance "a same-day entry picks up the button mood" was already met in Phase 1** (G9), with Q1 = no. Re-verified in tests, not rebuilt.
 
 ### Steps
-- [ ] **P3.1** `checkins.py`: `record_inline()` (legacy_prefix @ entry created_at, called from `merge_into_entry`), `set_note()`, `today_state()`
-- [ ] **P3.2** `sc_dispatch.py`: card render; `mood`/`mod` with optional `:YYYYMMDD`, re-render on tap; stale-day guard; `note:<t>[:day]` → pending `note:<t>` (2h) + "Add your note below."; `/mood` `/module` → card via `channelData.telegram.buttons`; chat-id normalise; `/journal` `/skip` stay "Coming soon"
-- [ ] **P3.3** `save_pending_note.py` (rename + `note:*`); AGENTS.md step 0 path
-- [ ] **P3.4** Plugin shim: pass the dispatcher reply object through (text, channelData, presentation)
-- [ ] **P3.5** `tests/test_feat07_phase3.py` + update phase 1/2 tests; all suites green
+- [x] **P3.1** `checkins.py`: `record_inline()` (legacy_prefix @ entry created_at, called from `merge_into_entry`), `set_note()`, `today_state()`
+- [x] **P3.2** `sc_dispatch.py`: card render; `mood`/`mod` with optional `:YYYYMMDD`, re-render on tap; stale-day guard; `note:<t>[:day]` → pending `note:<t>` (2h) + "Add your note below."; `/mood` `/module` → card via `channelData.telegram.buttons`; chat-id normalise; `/journal` `/skip` stay "Coming soon"
+- [x] **P3.3** `save_pending_note.py` (rename + `note:*`); AGENTS.md step 0 path
+- [x] **P3.4** Plugin shim: pass the dispatcher reply object through (text, channelData, presentation)
+- [x] **P3.5** `tests/test_feat07_phase3.py` 33/33; phase1 67/67 (card semantics), phase2 43/43 (rename); existing suites green
 - [ ] **P3.6** Quiet-window gateway restart (shim change); `is-active` + all channels back; `/mood` shows in the menu
 - [ ] **P3.7** Live acceptance: `/mood` → 2×5 card; mood + module taps re-render; note via "Add a note"; an old card → expired; no agent turn on taps or commands; test rows cleaned
 - [ ] Phase summary; merge on approval

@@ -160,15 +160,16 @@ db = scratch_db("dispatch.db"); migrate(db); conn = sqlite3.connect(db)
 now = at(10, 0)
 out = sc_dispatch.handle_callback({"payload": "mood:7", "chatId": CHAT, "messageId": 555,
                                    "messageText": "[FEAT-07 test] Tap"}, conn, now)
-check("mood tap edits message", out["actions"] == [{"type": "edit",
-      "text": "[FEAT-07 test] Tap\n\n✓ Mood: 7 ✓"}], out)
+# Since Phase 3 a tap re-renders the check-in card (own tests in test_feat07_phase3.py).
+check("mood tap edits message", out["actions"][0]["type"] == "edit"
+      and out["actions"][0]["text"] == "Check-in · Wed 7 Oct\nMood: 7 ✓", out)
 check("mood tap wrote check-in", conn.execute(
       "SELECT value, source, message_id, local_date FROM checkin_events").fetchall()
       == [("7", "button", "555", "2026-10-07")])
 out = sc_dispatch.handle_callback({"payload": "mood:8", "chatId": CHAT, "messageId": 555,
                                    "messageText": "[FEAT-07 test] Tap\n\n✓ Mood: 7 ✓"}, conn, now)
 check("re-tap replaces the status line, not appends",
-      out["actions"][0]["text"] == "[FEAT-07 test] Tap\n\n✓ Mood: 8 ✓", out)
+      out["actions"][0]["text"] == "Check-in · Wed 7 Oct\nMood: 8 ✓", out)
 out = sc_dispatch.handle_callback({"payload": "mod:happiness", "chatId": CHAT, "messageId": 556,
                                    "messageText": "pick"}, conn, now)
 check("module tap", out["actions"][0]["text"].endswith("Module: Happiness ✓"), out)
@@ -183,7 +184,8 @@ check("stale picker writes nothing",
 for p in ("write:morning", "bogus:1", "mood:99"):  # fb:* is live since Phase 2 (own tests)
     out = sc_dispatch.handle_callback({"payload": p, "chatId": CHAT, "messageId": 1}, conn, now)
     check(f"{p} -> no actions (logged)", out == {"actions": []}, out)
-check("commands answer 'coming soon'", "Coming soon" in sc_dispatch.handle_command({"command": "mood"})["text"])
+check("unbuilt commands answer 'coming soon'",
+      "Coming soon" in sc_dispatch.handle_command({"command": "journal"})["reply"]["text"])
 
 
 # --- tg helpers -------------------------------------------------------------------

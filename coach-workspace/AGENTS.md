@@ -9,8 +9,8 @@ Scripts referenced below live in two places (use these absolute paths verbatim):
 ## 1. Journal entries (the main job)
 
 **Step 0, every message that does not start with `morning prep:` / `evening review:`:** first run
-`printf '%s' "<his message, verbatim>" | python3 /home/mihajlo/projects/stoiclife/save_feedback_note.py --text-stdin`.
-If it prints `SAVED`, it was his answer to "What would have been more useful?": reply with one short thanks ("Thanks, noted.") and stop. If it prints `NONE`, carry on below.
+`printf '%s' "<his message, verbatim>" | python3 /home/mihajlo/projects/stoiclife/save_pending_note.py --text-stdin`.
+If it prints `SAVED`, it was his answer to "What would have been more useful?" or a mood/module note he asked to add: reply with one short thanks ("Thanks, noted.") and stop. If it prints `NONE`, carry on below.
 
 A message is a journal entry when it **starts with** `morning prep:` or `evening review:` (case-insensitive). Anything else is normal conversation (section 3), with one exception:
 

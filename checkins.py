@@ -103,8 +103,59 @@ def _ts(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
+def record_inline(conn: sqlite3.Connection, entry_id: int, chat_id: str) -> dict:
+    """P3-D6: log an entry's inline `mood N` / `module:x` as legacy_prefix check-ins.
+
+    Must run *before* merge_into_entry, while mood_source='manual' / a set module can
+    only have come from the entry text. Stamped with the entry's created_at, not now:
+    G9 only lets a check-in reach the *next* entry if it is strictly newer than this
+    one, so a "now" stamp would leak the morning's inline mood onto the evening entry.
+    """
+    row = conn.execute(
+        "SELECT date, mood_score, mood_source, module, created_at FROM journal_entries "
+        "WHERE id = ?", (entry_id,)).fetchone()
+    if not row:
+        return {}
+    day, mood, mood_source, module, created_at = row
+    at = _ts(created_at)
+    recorded = {}
+    if mood_source == "manual" and mood is not None:
+        upsert(conn, chat_id=chat_id, ctype="mood", value=mood, source="legacy_prefix",
+               day=day, now=at)
+        recorded["mood"] = int(mood)
+    if module:
+        upsert(conn, chat_id=chat_id, ctype="module", value=module, source="legacy_prefix",
+               day=day, now=at)
+        recorded["module"] = module
+    return recorded
+
+
+def today_state(conn: sqlite3.Connection, chat_id: str, day: str) -> dict:
+    """{'mood': {'value', 'note', 'source'}, 'module': {...}} for the day (missing types absent)."""
+    return {t: {"value": v, "note": n, "source": src}
+            for t, v, n, src in conn.execute(
+                "SELECT type, value, note, source FROM checkin_events "
+                "WHERE chat_id = ? AND local_date = ?", (str(chat_id), day))}
+
+
+def set_note(conn: sqlite3.Connection, chat_id: str, day: str, ctype: str, text: str,
+             now: datetime | None = None) -> bool:
+    """Attach a note to the day's mood/module check-in. False if there is no such check-in."""
+    cur = conn.execute(
+        "UPDATE checkin_events SET note = ?, updated_at = updated_at WHERE chat_id = ? "
+        "AND local_date = ? AND type = ?", (text.strip(), str(chat_id), day, ctype))
+    return cur.rowcount > 0
+
+
 def merge_into_entry(conn: sqlite3.Connection, entry_id: int, chat_id: str) -> dict:
-    """Apply the day's check-ins to a freshly saved entry (G9). Returns what changed."""
+    """Apply the day's check-ins to a freshly saved entry (G9). Returns what changed.
+
+    Also records the entry's own inline values as legacy_prefix check-ins first (P3-D6).
+    """
+    try:
+        record_inline(conn, entry_id, chat_id)
+    except ValueError:
+        pass  # an out-of-range stored value never blocks the merge
     row = conn.execute(
         "SELECT date, mood_source, module, created_at FROM journal_entries WHERE id = ?",
         (entry_id,),

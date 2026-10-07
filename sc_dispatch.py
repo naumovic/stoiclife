@@ -13,7 +13,7 @@ stdout (callback): {"actions": [{"type": "edit", "text": "...", "buttons": [[...
                                 {"type": "editButtons", "buttons": [[...]]},
                                 {"type": "clearButtons"},
                                 {"type": "reply", "text": "...", "buttons": [[...]]}]}
-stdout (command):  {"text": "..."}
+stdout (command):  {"reply": {"text": "...", "channelData": {"telegram": {"buttons": [[...]]}}}}
 
 Buttons are Telegram rows: [[{"text": "7", "callback_data": "sc:mood:7"}]].
 Anything malformed or unknown is logged and answered with no actions; it is never
@@ -36,16 +36,19 @@ SESSIONS = ("morning", "evening")
 
 # Accepted payload shapes (after the `sc:` namespace) — the scheme in the seed doc.
 PATTERNS = {
-    "mood": re.compile(r"^mood:(10|[1-9])$"),
-    "mod": re.compile(r"^mod:(emotions|creativity|happiness)$"),
+    # P3-D4: card buttons carry their day (`:YYYYMMDD`); the plan's suffix-less form stays valid.
+    "mood": re.compile(r"^mood:(10|[1-9])(?::(\d{8}))?$"),
+    "mod": re.compile(r"^mod:(emotions|creativity|happiness)(?::(\d{8}))?$"),
     "fb": re.compile(r"^fb:([rt])(\d+):(up|down)$"),
     "fbr": re.compile(r"^fbr:([rt])(\d+):(generic|offbase|long|more)$"),
     "write": re.compile(r"^write:(morning|evening)$"),
     "skip": re.compile(r"^skip:(morning|evening)$"),
-    "note": re.compile(r"^note:(mood|module)$"),
+    "note": re.compile(r"^note:(mood|module)(?::(\d{8}))?$"),
     "noop": re.compile(r"^noop$"),
 }
-NOT_YET = {"note": 3, "write": 4, "skip": 4}  # action -> phase that adds it
+NOT_YET = {"write": 4, "skip": 4}  # action -> phase that adds it
+NOTE_HOURS = 2
+LIVE_COMMANDS = ("mood", "module")  # /journal and /skip land with Phase 4 (P3-D5)
 
 REPO_DIR = Path(__file__).resolve().parent
 REACTION_CONFIG = REPO_DIR / "stoiclife_config.json"  # tests point this at a scratch config
@@ -135,31 +138,97 @@ def parse(payload: str):
     return (action, m.groups()) if m else (None, None)
 
 
-def _first_block(text: str | None) -> str:
-    """The message text without any status lines we appended on an earlier tap."""
-    return (text or "").split("\n\n✓ ", 1)[0].rstrip()
+def chat_of(req: dict) -> str:
+    """Telegram chat id; commands arrive as `telegram:<id>` (P3-D8)."""
+    raw = str(req.get("chatId") or checkins.coach_config()["chat_id"])
+    return raw.split(":", 1)[1] if raw.startswith("telegram:") else raw
 
 
-def handle_checkin(req: dict, ctype: str, value: str, conn, now: datetime) -> dict:
-    chat_id = str(req.get("chatId") or checkins.coach_config()["chat_id"])
-    message_id = req.get("messageId")
+def day_tag(day: str) -> str:
+    return day.replace("-", "")
+
+
+def tag_day(tag: str) -> str:
+    return f"{tag[:4]}-{tag[4:6]}-{tag[6:]}"
+
+
+def card(conn, chat_id: str, day: str) -> tuple[str, list]:
+    """The check-in card for `day`, rendered from the DB (never from the callback text)."""
+    state = checkins.today_state(conn, chat_id, day)
+    mood = (state.get("mood") or {}).get("value")
+    module = (state.get("module") or {}).get("value")
+    tag = day_tag(day)
+    title = datetime.strptime(day, "%Y-%m-%d").strftime("Check-in · %a %-d %b")
+    parts = []
+    if mood:
+        parts.append(f"Mood: {mood} ✓")
+    if module:
+        parts.append(f"Module: {module.capitalize()} ✓")
+    lines = [title, " · ".join(parts) if parts else "Tap a mood (1–10) and, if you like, a Stoic module."]
+    for ctype, label in (("mood", "Mood note"), ("module", "Module note")):
+        note = (state.get(ctype) or {}).get("note")
+        if note:
+            lines.append(f"📝 {label}: {note if len(note) <= 120 else note[:117] + '…'}")
+
+    def mark(label, chosen):
+        return f"{label} ✓" if chosen else label
+
+    rows = [[btn(mark(str(n), mood == str(n)), f"sc:mood:{n}:{tag}") for n in range(1, 6)],
+            [btn(mark(str(n), mood == str(n)), f"sc:mood:{n}:{tag}") for n in range(6, 11)],
+            [btn(mark(k.capitalize(), module == k), f"sc:mod:{k}:{tag}") for k in MODULE_KEYS]]
+    notes = [t for t in ("mood", "module") if (state.get(t) or {}).get("value")]
+    if len(notes) == 1:
+        rows.append([btn("📝 Add a note", f"sc:note:{notes[0]}:{tag}")])
+    elif notes:
+        rows.append([btn("📝 Mood note", f"sc:note:mood:{tag}"),
+                     btn("📝 Module note", f"sc:note:module:{tag}")])
+    return "\n".join(lines), rows
+
+
+def expired(day: str) -> dict:
+    when = datetime.strptime(day, "%Y-%m-%d").strftime("%a %-d %b")
+    return {"actions": [{"type": "edit", "buttons": [],
+                         "text": f"This check-in card is from {when} and has expired. Send /mood for today's."}]}
+
+
+def card_day(req: dict, conn, chat_id: str, tag: str | None, today: str) -> str | None:
+    """The card's day, or None when the tap is stale (G5 / P3-D4)."""
+    if tag:
+        return today if tag_day(tag) == today else None
+    ui = tg.lookup_ui_message(conn, chat_id, req["messageId"]) if req.get("messageId") is not None else None
+    return None if ui and ui["local_date"] != today else today
+
+
+def handle_checkin(req: dict, ctype: str, value: str, tag: str | None, conn, now: datetime) -> dict:
+    chat_id = chat_of(req)
     today = checkins.local_date(now)
-
-    ui = tg.lookup_ui_message(conn, chat_id, message_id) if message_id is not None else None
-    if ui and ui["local_date"] != today:  # G5: stale picker
-        tg.log("INFO", f"sc_dispatch: stale {ctype} tap on message {message_id} "
-                       f"from {ui['local_date']} (today {today}); ignored")
-        return {"actions": [{"type": "edit",
-                             "text": _first_block(req.get("messageText"))
-                             + "\n\n✓ This picker has expired. Use /mood for today."}]}
-
+    day = card_day(req, conn, chat_id, tag, today)
+    if day is None:
+        stale = tag_day(tag) if tag else tg.lookup_ui_message(conn, chat_id, req["messageId"])["local_date"]
+        tg.log("INFO", f"sc_dispatch: stale {ctype} tap from {stale} (today {today}); ignored")
+        return expired(stale)
+    message_id = req.get("messageId")
     with conn:
         checkins.upsert(conn, chat_id=chat_id, ctype=ctype, value=value, source="button",
-                        day=today, message_id=str(message_id) if message_id else None, now=now)
-    label = f"Mood: {value} ✓" if ctype == "mood" else f"Module: {value.capitalize()} ✓"
-    tg.log("INFO", f"sc_dispatch: checkin {ctype}={value} chat={chat_id} day={today}")
-    return {"actions": [{"type": "edit",
-                         "text": _first_block(req.get("messageText")) + "\n\n✓ " + label}]}
+                        day=day, message_id=str(message_id) if message_id else None, now=now)
+    tg.log("INFO", f"sc_dispatch: checkin {ctype}={value} chat={chat_id} day={day}")
+    text, rows = card(conn, chat_id, day)
+    return {"actions": [{"type": "edit", "text": text, "buttons": rows}]}
+
+
+def handle_note(req: dict, ctype: str, tag: str | None, conn, now: datetime) -> dict:
+    chat_id = chat_of(req)
+    today = checkins.local_date(now)
+    day = card_day(req, conn, chat_id, tag, today)
+    if day is None:
+        return expired(tag_day(tag) if tag else today)
+    if not checkins.today_state(conn, chat_id, day).get(ctype):
+        return {"actions": [{"type": "reply", "text": f"Pick a {ctype} first, then add the note."}]}
+    tg.set_pending(f"note:{ctype}:{day_tag(day)}", chat_id=chat_id,
+                   message_id=str(req.get("messageId") or ""),
+                   expires_at=now + timedelta(hours=NOTE_HOURS))
+    tg.log("INFO", f"sc_dispatch: note requested for {ctype} on {day}")
+    return {"actions": [{"type": "reply", "text": f"Add your {ctype} note below."}]}
 
 
 def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
@@ -175,9 +244,11 @@ def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
     now = now or checkins.now_local()
     conn = conn or tg.db_connect()
     if action == "mood":
-        return handle_checkin(req, "mood", groups[0], conn, now)
+        return handle_checkin(req, "mood", groups[0], groups[1], conn, now)
     if action == "mod":
-        return handle_checkin(req, "module", groups[0], conn, now)
+        return handle_checkin(req, "module", groups[0], groups[1], conn, now)
+    if action == "note":
+        return handle_note(req, groups[0], groups[1], conn, now)
     if action in ("fb", "fbr"):
         return handle_feedback(req, action, groups, conn, now)
     if action == "noop":  # a status button ("✓ Noted …"); nothing to do
@@ -185,10 +256,19 @@ def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
     return {"actions": []}  # unreachable while PATTERNS and the branches agree
 
 
-def handle_command(req: dict) -> dict:
+def handle_command(req: dict, conn=None, now: datetime | None = None) -> dict:
+    """Slash commands. Returns {"reply": ReplyPayload}; the shim passes it through as-is."""
     command = str(req.get("command") or "")
-    tg.log("INFO", f"sc_dispatch: /{command} (not live until Phase 3/4)")
-    return {"text": "Coming soon. This command goes live in a later update."}
+    if command not in LIVE_COMMANDS:
+        tg.log("INFO", f"sc_dispatch: /{command} (lands with Phase 4)")
+        return {"reply": {"text": "Coming soon. This command goes live in a later update."}}
+    conn = conn or tg.db_connect()
+    now = now or checkins.now_local()
+    chat_id = chat_of(req)
+    text, rows = card(conn, chat_id, checkins.local_date(now))
+    tg.log("INFO", f"sc_dispatch: /{command} -> check-in card")
+    # P3-D2: channelData.telegram.buttons keeps the exact 2x5 rows (presentation would re-chunk by 3).
+    return {"reply": {"text": text, "channelData": {"telegram": {"buttons": rows}}}}
 
 
 def main() -> int:
@@ -202,7 +282,8 @@ def main() -> int:
         out = handle_command(req) if req.get("kind") == "command" else handle_callback(req)
     except Exception as exc:  # never let a tap crash into the agent; log and do nothing
         tg.log("ERROR", f"sc_dispatch: {type(exc).__name__}: {exc} (req={req!r})")
-        out = {"actions": []} if req.get("kind") != "command" else {"text": "Something went wrong; it's logged."}
+        out = ({"actions": []} if req.get("kind") != "command"
+               else {"reply": {"text": "Something went wrong; it's logged."}})
     print(json.dumps(out))
     return 0
 

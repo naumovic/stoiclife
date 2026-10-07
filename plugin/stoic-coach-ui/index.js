@@ -114,7 +114,10 @@ export default {
               chatId: ctx.from ?? ctx.to,
               senderId: ctx.senderId,
             });
-            return { text: out.text ?? "", ...(out.presentation ? { presentation: out.presentation } : {}) };
+            // P3-D3: pass the dispatcher's reply through untouched (text, channelData,
+            // presentation), so new reply shapes never need a shim change + restart.
+            if (out.reply && typeof out.reply === "object") return out.reply;
+            return { text: out.text ?? "" };
           } catch (e) {
             log.error(`stoic-coach-ui: /${cmd.name}: ${e?.message ?? e}`);
             return { text: "Something went wrong; it's logged." };
