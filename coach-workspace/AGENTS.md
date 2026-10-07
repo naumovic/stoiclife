@@ -8,7 +8,9 @@ Scripts referenced below live in two places (use these absolute paths verbatim):
 
 ## 1. Journal entries (the main job)
 
-**Step 0, every message that does not start with `morning prep:` / `evening review:`:** first run
+**Reading the message.** OpenClaw may show recent chat history (`#N … name: text` lines) before his message. His current message is the text **after the last `#N` history line**, even when no blank line separates it. Never conclude he sent nothing.
+
+**Step 0, every message that does not start with `morning prep:` / `evening review:` or `/`:** run this **first, before anything else** (no reading state.json, no other command), even if the message looks empty, odd or unrelated:
 `printf '%s' "<his message, verbatim>" | python3 /home/mihajlo/projects/stoiclife/save_pending_note.py --text-stdin`.
 If it prints `SAVED`, it was his answer to "What would have been more useful?" or a mood/module note he asked to add: reply with one short thanks ("Thanks, noted.") and stop. If it prints `NONE`, carry on below.
 
@@ -37,7 +39,7 @@ A message is a journal entry when it **starts with** `morning prep:` or `evening
      - `SEND_FULL` → compose the stoiclife message in the strict format it prints and run the printed `record_coaching.py … --send` command: it validates, records **and sends** it (fix and retry once if rejected, exit 2). This replaces coaching_text. **Exception: if a Stoic module was requested,** first send the module coaching_text (send_coaching above), then run the `record_coaching … --send` command, so the module reply is never lost.
      - `CLARIFY` → send coaching_text (send_coaching above), then reply with the printed 🧭 line as your own reply (no buttons on it).
      - `SILENT` / `HOLD_QUIET` → send coaching_text with any `STOICLIFE_STATUS:` line appended verbatim as its last line (send_coaching above).
-7. Your own reply: exactly `NO_REPLY` once the scripts have sent everything (the 🧭 line is the only exception, see CLARIFY). Never repeat a message a script already sent. If `send_coaching.py` fails (non-zero), reply with the coaching_text yourself so it isn't lost, then one line saying the button send failed. If `record_coaching … --send` exits 3, the push wasn't delivered: say so in one line. If another script fails, say which step failed in one line, and don't pretend it saved.
+7. Your own reply: exactly `NO_REPLY` once the scripts have sent everything (`NO_REPLY` is only ever right after a script has sent the reply; never answer one of his messages with `NO_REPLY` otherwise) (the 🧭 line is the only exception, see CLARIFY). Never repeat a message a script already sent. If `send_coaching.py` fails (non-zero), reply with the coaching_text yourself so it isn't lost, then one line saying the button send failed. If `record_coaching … --send` exits 3, the push wasn't delivered: say so in one line. If another script fails, say which step failed in one line, and don't pretend it saved.
 
 ## 2. Typed feedback on a coaching message
 

@@ -212,3 +212,31 @@ def clear_pending(chat_id: str | None = None, *, path: Path | None = None) -> No
     if (state.get("pending") or {}).pop(chat_id, None) is not None:
         write_state(state, path)
         log("INFO", f"pending cleared chat={chat_id}")
+
+
+# --- consumed marker (P3-B1) ---------------------------------------------------
+# The plugin's message_received hook saves a pending note deterministically, before
+# the LLM sees the message. It leaves {"consumed": {chat: {text, kind, at}}} so the
+# coach's step 0, run on the same message moments later, still answers SAVED.
+
+def mark_consumed(text: str, kind: str, *, chat_id: str | None = None,
+                  path: Path | None = None) -> None:
+    chat_id = str(chat_id or coach_config()["chat_id"])
+    state = read_state(path)
+    state.setdefault("consumed", {})[chat_id] = {"text": text.strip(), "kind": kind,
+                                                 "at": now_local().isoformat()}
+    write_state(state, path)
+
+
+def take_consumed(text: str, *, chat_id: str | None = None, max_age_s: int = 600,
+                  now: datetime | None = None, path: Path | None = None) -> dict | None:
+    """Pop the marker if it is for this exact text and recent; else None (marker kept)."""
+    chat_id = str(chat_id or coach_config()["chat_id"])
+    state = read_state(path)
+    mark = (state.get("consumed") or {}).get(chat_id)
+    if not mark or mark.get("text") != text.strip():
+        return None
+    age = ((now or now_local()) - datetime.fromisoformat(mark["at"])).total_seconds()
+    state["consumed"].pop(chat_id, None)
+    write_state(state, path)
+    return mark if age <= max_age_s else None

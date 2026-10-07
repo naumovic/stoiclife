@@ -125,6 +125,23 @@ export default {
         },
       });
     }
-    log.info("stoic-coach-ui: registered sc namespace + /mood /module /journal /skip");
+    // P3-B1: save a pending note / "Tell me more" answer as the message arrives, before
+    // the LLM sees it (the coach once misread the message and skipped its step 0).
+    // Observe-only hook: the agent still gets the message and acks it.
+    api.on("message_received", async (event, ctx) => {
+      if (ctx?.channelId !== "telegram" || ctx?.accountId !== COACH_ACCOUNT) return;
+      try {
+        await runDispatch({
+          kind: "message",
+          text: event.content ?? "",
+          chatId: event.from ?? ctx.conversationId,
+          messageId: event.messageId,
+          senderId: event.senderId,
+        });
+      } catch (e) {
+        log.error(`stoic-coach-ui: message hook: ${e?.message ?? e}`);
+      }
+    });
+    log.info("stoic-coach-ui: registered sc namespace + /mood /module /journal /skip + message hook");
   },
 };

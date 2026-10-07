@@ -132,6 +132,33 @@ tap("note:module:20261008")
 check("newer intent replaces the pending slot", tg.get_pending(CHAT)["kind"] == "note:module:20261008")
 tg.clear_pending(CHAT)
 
+# --- P3-B1: message_received hook saves deterministically -----------------------------------
+tg.set_pending("note:module:20261008", chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
+c_msg = conn
+_orig_connect = tg.db_connect
+tg.db_connect = lambda path=None: c_msg  # the hook path opens its own connection
+out = sc_dispatch.handle_message({"text": "Rockin", "chatId": f"telegram:{CHAT}"})
+check("hook saves the pending note before the LLM", out == {"saved": True}, out)
+check("module note stored", conn.execute("SELECT note FROM checkin_events WHERE type='module'").fetchone()[0] == "Rockin")
+check("pending cleared, consumed marker left", tg.get_pending(CHAT) is None
+      and (tg.read_state().get("consumed") or {}).get(CHAT, {}).get("text") == "Rockin")
+check("coach step 0 on the same message -> SAVED (from the marker)", save_pending_note.save_note("Rockin", CHAT, conn))
+check("marker used up", not (tg.read_state().get("consumed") or {}).get(CHAT))
+check("a later normal message -> NONE", not save_pending_note.save_note("Rockin", CHAT, conn))
+tg.mark_consumed("old note", "note:mood:20261008", chat_id=CHAT)
+check("different text -> marker not used", not save_pending_note.save_note("something else", CHAT, conn))
+check("stale marker (>10 min) -> not SAVED", tg.take_consumed("old note", chat_id=CHAT,
+      now=datetime.now(TZ) + timedelta(minutes=11)) is None)
+tg.set_pending("note:mood:20261008", chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
+for t in ("/mood", "morning prep: today is fine", "Evening review: ok", "  "):
+    check(f"hook ignores {t!r}", sc_dispatch.handle_message({"text": t, "chatId": CHAT}) == {"saved": False}
+          and tg.get_pending(CHAT) is not None)
+check("agent-first path still works (hook then finds nothing)",
+      save_pending_note.save_note("agent got here first", CHAT, conn)
+      and sc_dispatch.handle_message({"text": "agent got here first", "chatId": CHAT}) == {"saved": False})
+check("no pending -> hook does nothing", sc_dispatch.handle_message({"text": "hello", "chatId": CHAT}) == {"saved": False})
+tg.db_connect = _orig_connect
+
 # --- commands --------------------------------------------------------------------------
 out = sc_dispatch.handle_command({"command": "mood", "chatId": f"telegram:{CHAT}"}, conn, NOW)
 rep = out["reply"]
@@ -147,6 +174,11 @@ proc = subprocess.run([sys.executable, str(REPO / "sc_dispatch.py")],
                       input=json.dumps({"kind": "command", "command": "skip"}), capture_output=True, text=True,
                       env={**os.environ, "HOME": str(TMP)})
 check("CLI command output is {'reply': …}", proc.returncode == 0 and "reply" in json.loads(proc.stdout), proc.stdout + proc.stderr)
+proc = subprocess.run([sys.executable, str(REPO / "sc_dispatch.py")],
+                      input=json.dumps({"kind": "message", "text": "/mood", "chatId": "telegram:1"}),
+                      capture_output=True, text=True, env={**os.environ, "HOME": str(TMP)})
+check("CLI message kind -> {'saved': False}", proc.returncode == 0 and json.loads(proc.stdout) == {"saved": False},
+      proc.stdout + proc.stderr)
 
 # --- legacy inline -> checkin_events (P3-D6) + G9 -----------------------------------------
 c3 = fresh_db("legacy.db")

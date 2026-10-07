@@ -271,6 +271,26 @@ def handle_command(req: dict, conn=None, now: datetime | None = None) -> dict:
     return {"reply": {"text": text, "channelData": {"telegram": {"buttons": rows}}}}
 
 
+JOURNAL_PREFIXES = ("morning prep:", "evening review:")
+
+
+def handle_message(req: dict) -> dict:
+    """P3-B1: the plugin's message_received hook, for every inbound coach-chat message.
+
+    Saves the text deterministically if a note / "Tell me more" answer is pending, so it
+    never depends on the LLM running step 0. Slash commands and journal entries are left
+    alone (step 0 skips those too). Returns {"saved": bool}; the hook ignores the result.
+    """
+    text = str(req.get("text") or "")
+    body = text.lstrip().lower()
+    if not body or body.startswith("/") or body.startswith(JOURNAL_PREFIXES):
+        return {"saved": False}
+    import save_pending_note  # local: keeps callback/command paths free of it
+    saved = save_pending_note.save_note(text, chat_of(req), from_hook=True)
+    tg.log("INFO", f"sc_dispatch: message hook chat={chat_of(req)} (raw {req.get('chatId')!r}) saved={saved}")
+    return {"saved": saved}
+
+
 def main() -> int:
     try:
         req = json.loads(sys.stdin.read() or "{}")
@@ -279,11 +299,14 @@ def main() -> int:
         print(json.dumps({"actions": []}))
         return 0
     try:
-        out = handle_command(req) if req.get("kind") == "command" else handle_callback(req)
+        kind = req.get("kind")
+        out = (handle_command(req) if kind == "command"
+               else handle_message(req) if kind == "message"
+               else handle_callback(req))
     except Exception as exc:  # never let a tap crash into the agent; log and do nothing
         tg.log("ERROR", f"sc_dispatch: {type(exc).__name__}: {exc} (req={req!r})")
-        out = ({"actions": []} if req.get("kind") != "command"
-               else {"reply": {"text": "Something went wrong; it's logged."}})
+        out = ({"reply": {"text": "Something went wrong; it's logged."}} if req.get("kind") == "command"
+               else {"saved": False} if req.get("kind") == "message" else {"actions": []})
     print(json.dumps(out))
     return 0
 

@@ -27,11 +27,25 @@ PENDING_RE = re.compile(r"^fb_more:([rt])(\d+)$")
 NOTE_RE = re.compile(r"^note:(mood|module):(\d{8})$")
 
 
-def save_note(text: str, chat_id: str | None = None, conn=None, state_path=None) -> bool:
-    pending = tg.get_pending(chat_id, path=state_path)
-    kind_s = (pending or {}).get("kind") or ""
+def save_note(text: str, chat_id: str | None = None, conn=None, state_path=None,
+              from_hook: bool = False) -> bool:
+    """Save `text` against the pending prompt. `from_hook`: called by the plugin's
+    message_received hook (P3-B1), which also leaves a consumed marker so the coach's
+    step 0 on the same message still reports SAVED."""
     if not text.strip():
         return False
+    if not from_hook and tg.take_consumed(text, chat_id=chat_id, path=state_path):
+        tg.log("INFO", "save_pending_note: already saved by the hook; SAVED")
+        return True
+    pending = tg.get_pending(chat_id, path=state_path)
+    kind_s = (pending or {}).get("kind") or ""
+    ok = _save(text, kind_s, chat_id, conn, state_path)
+    if ok and from_hook:
+        tg.mark_consumed(text, kind_s, chat_id=chat_id, path=state_path)
+    return ok
+
+
+def _save(text: str, kind_s: str, chat_id, conn, state_path) -> bool:
     n = NOTE_RE.match(kind_s)
     if n:
         ctype, tag = n.groups()
