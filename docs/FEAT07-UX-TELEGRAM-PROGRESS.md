@@ -4,10 +4,10 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 2 (feedback buttons), **planned, not started**. The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
+- **Phase:** 2 (feedback buttons), **in progress** (P2.0 done). The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
 - **Branch:** `feat07-phase2-feedback` (from `main` @ e81e8c9). Don't push unless asked.
 - **Last done:** Phase 1 merged to `main`; this tracker created.
-- **Next:** get Mihajlo's go → P2.0 live checks (bold via CLI, `NO_REPLY` in a DM turn).
+- **Next:** P2.1–P2.8 (build + tests), then P2.9 live acceptance with Mihajlo.
 
 ## Live state pointers
 
@@ -53,7 +53,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - **P2-D11** `send_coaching --kind r --entry-id N` fills `data_flags_json` itself from that entry's latest `trigger_events` row.
 
 ### Steps
-- [ ] **P2.0** Live checks: bold via `tg.send`; DM `NO_REPLY` suppressed. Stop and decide if either fails. Clean up test rows.
+- [x] **P2.0** Live checks (2026-10-07): bold + strict-format markup via `tg.send` with buttons renders correctly (msg 69; CLI sends default to markdown→HTML, `send-*.js` textMode); an inbound DM turn answered `NO_REPLY` → no outbound send in the gateway log. Test row cleaned.
 - [ ] **P2.1** `send_coaching.py`: `--text-stdin`; r auto `data_flags_json`
 - [ ] **P2.2** `record_coaching.py --send`
 - [ ] **P2.3** `sc_dispatch.py`: `fb` up/down, `fbr` reasons, `more` → pending `fb_more:<k><id>` (2h), `noop`; `t` → `record_reaction.py --coaching-id`
