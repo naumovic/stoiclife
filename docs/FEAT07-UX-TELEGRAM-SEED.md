@@ -9,7 +9,7 @@ The blueprint for FEAT-07. Mihajlo's plan v2 is reproduced verbatim further down
 | 0 Discovery | `feat07-phase0-current-state` | ✅ done, merged to main (44c5a11) |
 | 1 Foundation | `feat07-phase1-foundation` | ✅ done, merged to main |
 | 2 Feedback buttons | `feat07-phase2-feedback` | ✅ done, merged to main (fixes P2-D1..D11 in the PROGRESS file) |
-| 3 Mood/module buttons + commands | — | not started |
+| 3 Mood/module buttons + commands | `feat07-phase3-checkins` | ✅ done, merged to main (P3-D1..D9, bug P3-B1 in the PROGRESS file) |
 | 4 Morning/evening without prefixes | — | not started |
 | 5 11am update | — | not started |
 | 6 Self-test metrics | — | not started |

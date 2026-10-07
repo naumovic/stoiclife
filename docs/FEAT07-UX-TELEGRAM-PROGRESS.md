@@ -4,11 +4,11 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 3 (mood/module buttons + commands), **in progress**: P3.1–P3.5 done; P3.6 restart done; next P3.7 live test.
-- **Branch:** `feat07-phase3-checkins` (from `main` @ 985a066). Don't push unless asked.
-- **Last done:** Phase 2 merged; Phase 3 planned + checked against the code.
-- **Watch:** first real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2 bug.
-- **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live.
+- **Phase:** 4 (morning/evening without prefixes), **not started**. Plan it and check it against the code (see the P3-B1 lesson under Phase 4), then get Mihajlo's OK before coding.
+- **Branch:** create `feat07-phase4-noprefix` from `main`. Don't push unless asked.
+- **Last done:** Phase 3 merged (check-in card via /mood /module, notes, message hook).
+- **Watch:** first real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2/3 bug.
+- **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. The plugin's `index.js` changes need a gateway restart; the Python ones don't.
 
 ## Live state pointers
 
@@ -67,7 +67,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P2.9b** Agent wiring, via a throwaway entry (2026-10-07 23:03): save → context → update → stoiclife_run (HOLD_QUIET) → `send_coaching --kind r` → agent `NO_REPLY`; one outbound message (81) with 👍/👎; `data_flags_json` filled (event 239). Test rows + the quiet-hours hold deleted. Tomorrow's real entries = confirmation; anything odd is logged as a bug.
 - [x] Phase summary (PROGRESS.md 2026-10-07); no workspace scripts or gateway config touched; merged to main
 
-## Phase 3: Mood/module buttons + commands 🔨 in progress (OK'd 2026-10-07)
+## Phase 3: Mood/module buttons + commands ✅ (merged 2026-10-07)
 
 ### Discrepancies vs plan v2 (proposed fixes)
 - **P3-D1 One check-in card, not separate pickers.** "Keep the unchosen picker visible" only works if mood and module share a message. `/mood` and `/module` both send the same card: a status line (`Mood: 7 ✓ · Module: Creativity ✓`), mood 1–5 / 6–10, the three modules, and `📝 Add a note` once something is chosen. Every tap re-renders the whole card from the DB, so it is deterministic and never built from the callback's plain text (P2-D5 lesson).
@@ -88,11 +88,11 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P3.5** `tests/test_feat07_phase3.py` 33/33; phase1 67/67 (card semantics), phase2 43/43 (rename); existing suites green
 - [x] **P3.6** Gateway restart 2026-10-07 23:14 (shim pass-through live); `is-active`, plugin registered, WhatsApp + both Telegram bots back
 - [x] **P3.7** Live acceptance 2026-10-07 23:16–23:19: `/mood` in the menu → 2×5 card; mood + module taps re-render in place; old card → expired; `/journal` → Coming soon; no agent turn on taps/commands. **Except the note:** see bug P3-B1. Test rows cleaned.
-- [ ] **P3.8 Bug P3-B1: typed note not saved.** OpenClaw appends the inbound text to the recent-history block with no separator (`#82 … test card.\n\nRockin`). The coach read "Rockin" as part of msg 82, decided it had no message, skipped step 0 and replied `NO_REPLY`, so the note was lost and no ack was sent. Same risk for "Tell me more" and for Phase 4's route_entry step. Proposed fix: deterministic save in the plugin's `message_received` hook (coach account) + AGENTS.md hardening; needs one restart.
-- [ ] Phase summary; merge on approval
+- [x] **P3.8 Bug P3-B1: typed note not saved.** OpenClaw appends the inbound text to the recent-history block with no separator (`#82 … test card.\n\nRockin`); the coach read "Rockin" as part of msg 82, skipped step 0 and replied `NO_REPLY`. **Fix:** the plugin's `message_received` hook (coach account) pipes every non-command, non-prefixed message to `sc_dispatch.py` (kind `message`) → `save_pending_note.save_note(from_hook=True)` saves deterministically and leaves a `consumed` marker in state.json; the coach's step 0 on the same text (≤10 min) answers `SAVED` from it. AGENTS.md: "his message is the text after the last `#N` line", step 0 runs first, never `NO_REPLY` to him unless a script sent the reply. Gateway restart 23:25. **Live 23:27:** hook saved the note at :28.696, step 0 got SAVED at :32.7, one "Thanks, noted."; a normal "Ok then" → hook `saved=False`, step 0 `NONE`, normal reply. Tests phase3 48/48.
+- [x] Phase summary (PROGRESS.md 2026-10-07); merged to main
 
 ## Phase 4: Morning/evening without prefixes
-- [ ] Planned and checked against code (`route_entry.py`, reply-to availability, D5 `NO_REPLY` for command crons G11)
+- [ ] Planned and checked against code (`route_entry.py`, reply-to availability, D5 `NO_REPLY` for command crons G11). **Lesson from P3-B1:** don't rely on the LLM to run a routing script first. Have the plugin's `message_received` hook compute the route as the message arrives (and do any deterministic saving), and let the coach read that decision.
 - [ ] Built, tested, live-accepted, merged
 
 ## Phase 5: 11am update
