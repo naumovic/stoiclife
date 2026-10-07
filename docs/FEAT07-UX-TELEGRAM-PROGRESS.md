@@ -4,10 +4,11 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 2 (feedback buttons), **in progress** (P2.0–P2.8 done; P2.9 pending). The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
-- **Branch:** `feat07-phase2-feedback` (from `main` @ e81e8c9). Don't push unless asked.
-- **Last done:** Phase 1 merged to `main`; this tracker created.
-- **Next:** P2.9b: verify the next real journal entry (07:30 morning prep 2026-10-08) went out via send_coaching with buttons, once. Then phase summary → merge on approval.
+- **Phase:** 3 (mood/module buttons + commands), **not started**. Plan it and check it against the code (incl. G18 3-per-row, P2-D5-style text edits), then get Mihajlo's OK before coding.
+- **Branch:** create `feat07-phase3-checkins` from `main`. Don't push unless asked.
+- **Last done:** Phase 2 merged (feedback buttons live on every coaching reply and push).
+- **Watch:** first real entries on 2026-10-08 (07:30 morning, 11:00 safety-net if it fires, 20:30 evening). Each should arrive once, with 👍/👎. Treat anything odd as a Phase 2 bug.
+- **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live.
 
 ## Live state pointers
 
@@ -37,7 +38,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] Live acceptance: tap → row + edit, no agent turn; unbuilt `sc:` logged; "hi" answered; test rows cleaned
 - [x] Q1 = no (tap after an entry doesn't update it); Q2 = yes (commands in the menus, incl. the trip bot)
 
-## Phase 2: Feedback buttons 📝 planned
+## Phase 2: Feedback buttons ✅ (merged 2026-10-07)
 
 ### Discrepancies vs plan v2 (approved fixes)
 - **P2-D1** In the journal flow, the normal coaching reply is *always* sent (SILENT/HOLD_QUIET/CLARIFY too), now through `send_coaching --kind r`. "Nothing on SILENT" applies only to the 11:00 cron. (Plan step 1 / D18 would have dropped normal replies.)
@@ -63,8 +64,8 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P2.7** Cron `700b6841` message → `record_coaching … --send`, then `NO_REPLY` (exit 3 → reply the text). Backup `~/.openclaw/cron/bak-feat07-p2-safetynet-20261007-225138.json`
 - [x] **P2.8** `tests/test_feat07_phase2.py` 43/43; phase1 67/67 (fb now live); existing suites green. `tg.py` gained a `STOICLIFE_TG_FAKE` test hook.
 - [x] **P2.9a** Live button acceptance (2026-10-07 22:56–22:58): 👍 on a `t` push → `✓ Noted 👍`, trigger_coaching/events usefulness +1 via record_reaction; 👎 on an `r` reply → 2×2 reasons → Tell me more → question + pending `fb_more:r2` → typed note saved by step 0 (`SAVED`), single "Thanks, noted." (second transcript copy = delivery-mirror); no agent turn on taps. Test rows removed, push 19 restored to unrated.
-- [ ] **P2.9b** Agent wiring on a real journal entry (next 07:30 morning prep): reply arrives once, with 👍/👎, row in `coaching_responses` with data_flags; check `stoic.log` + coach transcript.
-- [ ] Phase summary for review (incl. any workspace files touched); merge on approval
+- [x] **P2.9b** Agent wiring, via a throwaway entry (2026-10-07 23:03): save → context → update → stoiclife_run (HOLD_QUIET) → `send_coaching --kind r` → agent `NO_REPLY`; one outbound message (81) with 👍/👎; `data_flags_json` filled (event 239). Test rows + the quiet-hours hold deleted. Tomorrow's real entries = confirmation; anything odd is logged as a bug.
+- [x] Phase summary (PROGRESS.md 2026-10-07); no workspace scripts or gateway config touched; merged to main
 
 ## Phase 3: Mood/module buttons + commands
 - [ ] Planned and checked against code (incl. G18 3-per-row layout, plain-text edit issue as in P2-D5)
