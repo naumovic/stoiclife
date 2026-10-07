@@ -76,7 +76,22 @@ def _parse_json_stdout(stdout: str):
     return json.loads(stdout[m.start():])
 
 
+# Tests set STOICLIFE_TG_FAKE=<file>: sends/edits are appended there as JSON lines
+# (with a fake, incrementing message id) instead of calling the CLI.
+FAKE_ENV = "STOICLIFE_TG_FAKE"
+
+
+def _fake(args: list[str]) -> dict:
+    path = Path(os.environ[FAKE_ENV])
+    n = sum(1 for _ in path.open()) if path.exists() else 0
+    with path.open("a") as fh:
+        fh.write(json.dumps({"args": args}) + "\n")
+    return {"payload": {"messageId": 90000 + n}}
+
+
 def _run(args: list[str], timeout: int = 60) -> dict:
+    if os.environ.get(FAKE_ENV):
+        return _fake(args)
     proc = subprocess.run([OPENCLAW, *args, "--json"], capture_output=True, text=True,
                           timeout=timeout)
     if proc.returncode != 0:
@@ -148,22 +163,25 @@ def db_connect(path: Path | str | None = None) -> sqlite3.Connection:
 #   "pending": {"<chat_id>": {"kind", "message_id", "set_at", "expires_at"}}
 # Every writer must read-modify-write so neither half wipes the other.
 
-def read_state(path: Path = STATE_PATH) -> dict:
+def read_state(path: Path | None = None) -> dict:
+    path = path or STATE_PATH
     try:
         return json.loads(path.read_text())
     except (OSError, ValueError):
         return {}
 
 
-def write_state(state: dict, path: Path = STATE_PATH) -> None:
+def write_state(state: dict, path: Path | None = None) -> None:
+    path = path or STATE_PATH
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(state, indent=2) + "\n")
     os.replace(tmp, path)
 
 
 def get_pending(chat_id: str | None = None, *, now: datetime | None = None,
-                path: Path = STATE_PATH) -> dict | None:
+                path: Path | None = None) -> dict | None:
     """The chat's pending state, or None if absent or expired."""
+    path = path or STATE_PATH
     chat_id = str(chat_id or coach_config()["chat_id"])
     entry = (read_state(path).get("pending") or {}).get(chat_id)
     if not entry:
@@ -175,7 +193,8 @@ def get_pending(chat_id: str | None = None, *, now: datetime | None = None,
 
 
 def set_pending(kind: str, *, chat_id: str | None = None, message_id: str | None = None,
-                expires_at: datetime | None = None, path: Path = STATE_PATH) -> dict:
+                expires_at: datetime | None = None, path: Path | None = None) -> dict:
+    path = path or STATE_PATH
     chat_id = str(chat_id or coach_config()["chat_id"])
     state = read_state(path)
     entry = {"kind": kind, "message_id": message_id, "set_at": now_local().isoformat(),
@@ -186,7 +205,8 @@ def set_pending(kind: str, *, chat_id: str | None = None, message_id: str | None
     return entry
 
 
-def clear_pending(chat_id: str | None = None, *, path: Path = STATE_PATH) -> None:
+def clear_pending(chat_id: str | None = None, *, path: Path | None = None) -> None:
+    path = path or STATE_PATH
     chat_id = str(chat_id or coach_config()["chat_id"])
     state = read_state(path)
     if (state.get("pending") or {}).pop(chat_id, None) is not None:

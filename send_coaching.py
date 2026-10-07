@@ -7,9 +7,12 @@
             (or --text-file) with sc:fb:t<id>:… buttons.
 
 Both record the message in `ui_messages` and print NO_REPLY on success, so an agent
-can relay stdout as its own (silent) reply. Not wired into AGENTS.md until Phase 2.
+can relay stdout as its own (silent) reply.
 
-    python3 send_coaching.py --kind r --entry-id 214 --session morning --text-file /tmp/reply.txt
+The coach can't write files, so it pipes the text in (P2-D2). For --kind r the
+`data_flags_json` is filled from the entry's latest trigger_events row (P2-D11).
+
+    printf '%s' "<reply>" | python3 send_coaching.py --kind r --entry-id 214 --session morning --text-stdin
     python3 send_coaching.py --kind t --target-id 19
 """
 from __future__ import annotations
@@ -28,7 +31,28 @@ def feedback_buttons(kind: str, target_id: int):
              ("👎 Not quite", f"sc:fb:{kind}{target_id}:down")]]
 
 
+def entry_flags(conn, entry_id: int | None) -> dict | None:
+    """The stoiclife verdict behind a reply: the entry's latest trigger_events row (P2-D11)."""
+    if not entry_id:
+        return None
+    row = conn.execute("SELECT date, session FROM journal_entries WHERE id = ?",
+                       (entry_id,)).fetchone()
+    if not row:
+        return None
+    ev = conn.execute(
+        "SELECT id, state, confidence, fired, cooldown_skipped, held_for_quiet_hours, "
+        "status_signal FROM trigger_events WHERE date = ? AND session = ? "
+        "ORDER BY id DESC LIMIT 1", row).fetchone()
+    if not ev:
+        return None
+    keys = ("event_id", "state", "confidence", "fired", "cooldown_skipped", "held",
+            "status_signal")
+    return dict(zip(keys, ev))
+
+
 def read_text(args) -> str | None:
+    if args.text_stdin:
+        return sys.stdin.read().strip()
     if args.text_file:
         return Path(args.text_file).read_text().strip()
     if args.text:
@@ -45,6 +69,7 @@ def main() -> int:
     ap.add_argument("--target-id", type=int, help="trigger_coaching.id (kind t)")
     ap.add_argument("--text", help="message text (prefer --text-file: no quoting issues)")
     ap.add_argument("--text-file")
+    ap.add_argument("--text-stdin", action="store_true", help="read the message text from stdin")
     ap.add_argument("--chat-id")
     ap.add_argument("--db")
     args = ap.parse_args()
@@ -56,7 +81,7 @@ def main() -> int:
     if args.kind == "r":
         if not text:
             ap.error("--kind r needs --text or --text-file")
-        flags = json.loads(args.data_flags) if args.data_flags else None
+        flags = json.loads(args.data_flags) if args.data_flags else entry_flags(conn, args.entry_id)
         with conn:
             cur = conn.execute(
                 "INSERT INTO coaching_responses (entry_id, chat_id, session, data_flags_json, "

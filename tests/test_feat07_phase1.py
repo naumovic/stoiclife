@@ -43,6 +43,8 @@ tg.LOG_PATH = TMP / "stoic.log"  # keep test noise out of the live log
 LIVE_SCHEMA = subprocess.run(
     ["sqlite3", "-readonly", str(checkins.DEFAULT_DB), ".schema"],
     capture_output=True, text=True, check=True).stdout
+# sqlite_sequence appears once AUTOINCREMENT tables exist; it can't be created by hand.
+LIVE_SCHEMA = "\n".join(l for l in LIVE_SCHEMA.splitlines() if not l.startswith("CREATE TABLE sqlite_sequence"))
 
 
 def scratch_db(name="t.db") -> Path:
@@ -178,7 +180,7 @@ out = sc_dispatch.handle_callback({"payload": "mood:2", "chatId": CHAT, "message
 check("stale picker (G5) -> expired edit", "expired" in out["actions"][0]["text"], out)
 check("stale picker writes nothing",
       conn.execute("SELECT COUNT(*), MAX(updated_at) FROM checkin_events").fetchone() == before)
-for p in ("fb:r1:up", "write:morning", "bogus:1", "mood:99"):
+for p in ("write:morning", "bogus:1", "mood:99"):  # fb:* is live since Phase 2 (own tests)
     out = sc_dispatch.handle_callback({"payload": p, "chatId": CHAT, "messageId": 1}, conn, now)
     check(f"{p} -> no actions (logged)", out == {"actions": []}, out)
 check("commands answer 'coming soon'", "Coming soon" in sc_dispatch.handle_command({"command": "mood"})["text"])

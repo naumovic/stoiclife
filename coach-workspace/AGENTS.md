@@ -8,6 +8,10 @@ Scripts referenced below live in two places (use these absolute paths verbatim):
 
 ## 1. Journal entries (the main job)
 
+**Step 0, every message that does not start with `morning prep:` / `evening review:`:** first run
+`printf '%s' "<his message, verbatim>" | python3 /home/mihajlo/projects/stoiclife/save_feedback_note.py --text-stdin`.
+If it prints `SAVED`, it was his answer to "What would have been more useful?": reply with one short thanks ("Thanks, noted.") and stop. If it prints `NONE`, carry on below.
+
 A message is a journal entry when it **starts with** `morning prep:` or `evening review:` (case-insensitive). Anything else is normal conversation (section 3), with one exception:
 
 - **Forgotten prefix.** If a message has no prefix, read `/home/mihajlo/.openclaw/stoic/state.json`. If `awaiting_response` is `true` and the message reads like an answer to that prompt (a reflection on the day, not a question or a request), ask once: "Save this as your morning prep?" (or "evening review?", per the state's `session`). Save it only on a clear yes, using the original message text, then continue from step 2. Never save on a guess, and don't ask again for the same message.
@@ -28,17 +32,18 @@ A message is a journal entry when it **starts with** `morning prep:` or `evening
 6. stoiclife check: `python3 /home/mihajlo/projects/stoiclife/stoiclife_run.py --session <morning|evening> --entry-id <id> --channel telegram`
    - **Always pass `--entry-id`.** A late reply is back-dated, and without the id the wrong day gets evaluated.
    - **Always pass `--channel telegram`.** It makes the printed format use Telegram bold (`**x**`), because on Telegram `*x*` shows as italic.
-   - Follow its `# AGENT:` lines. In short:
-     - `SEND_FULL` → compose the stoiclife message in the strict format it prints, record it with the printed `record_coaching.py` command (fix and retry once if rejected), and send that **instead of** coaching_text. **Exception: if a Stoic module was requested,** send the module coaching_text first, then the stoiclife message unchanged, so the module reply is never lost.
-     - `CLARIFY` → send coaching_text, then the printed 🧭 line.
-     - `SILENT` / `HOLD_QUIET` → send coaching_text, plus any `STOICLIFE_STATUS:` line appended verbatim as the last line.
-7. Reply with the final text only. Don't send a separate "entry saved" message unless a step failed. If a script fails, say which step failed in one line, and don't pretend it saved.
+   - Follow its `# AGENT:` lines. Coaching messages are **sent by scripts** (they add 👍/👎 buttons), never as your own reply text:
+     - **Send coaching_text** = `printf '%s' "<coaching_text>" | python3 /home/mihajlo/projects/stoiclife/send_coaching.py --kind r --entry-id <id> --session <morning|evening> --text-stdin` (prints `NO_REPLY` on success).
+     - `SEND_FULL` → compose the stoiclife message in the strict format it prints and run the printed `record_coaching.py … --send` command: it validates, records **and sends** it (fix and retry once if rejected, exit 2). This replaces coaching_text. **Exception: if a Stoic module was requested,** first send the module coaching_text (send_coaching above), then run the `record_coaching … --send` command, so the module reply is never lost.
+     - `CLARIFY` → send coaching_text (send_coaching above), then reply with the printed 🧭 line as your own reply (no buttons on it).
+     - `SILENT` / `HOLD_QUIET` → send coaching_text with any `STOICLIFE_STATUS:` line appended verbatim as its last line (send_coaching above).
+7. Your own reply: exactly `NO_REPLY` once the scripts have sent everything (the 🧭 line is the only exception, see CLARIFY). Never repeat a message a script already sent. If `send_coaching.py` fails (non-zero), reply with the coaching_text yourself so it isn't lost, then one line saying the button send failed. If `record_coaching … --send` exits 3, the push wasn't delivered: say so in one line. If another script fails, say which step failed in one line, and don't pretend it saved.
 
-## 2. Feedback on a 🧭 push
+## 2. Typed feedback on a coaching message
 
-When Mihajlo replies to a stoiclife 🧭 message with a rating (👍/👎, a word, a short comment), record it:
-`python3 /home/mihajlo/projects/stoiclife/record_reaction.py --usefulness <1|0|-1> --reaction "<his reply>"`
-It targets the latest unrated push (18h window). Then reply briefly.
+Coaching messages carry 👍/👎 buttons, handled without you. If Mihajlo instead **types** a rating after a coaching message or 🧭 push (👍/👎, a word, a short comment), record it:
+`python3 /home/mihajlo/projects/stoiclife/record_feedback.py --rating <up|down|neutral> --reaction "<his reply>"`
+It targets the latest unrated coaching message (18h window). Then reply briefly.
 
 ## 3. Conversation, health questions, reflection
 

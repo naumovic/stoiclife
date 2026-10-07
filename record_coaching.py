@@ -12,6 +12,12 @@ Usage:
         python3 record_coaching.py --event-id N
     python3 record_coaching.py --event-id N --file message.txt
     python3 record_coaching.py --event-id N --channel telegram   # validate Telegram bold
+    printf '%s' "<msg>" | python3 record_coaching.py --event-id N --channel telegram --send
+
+FEAT-07 (P2-D4): --send also delivers a *valid* message to the coach chat with
+👍/👎 buttons (send_coaching.py --kind t) and prints only NO_REPLY, so the agent's
+own reply is silent. An invalid message is never sent. If delivery fails, the event
+is put back to message_sent=0 and the exit code is 3.
 """
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ import argparse
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +53,8 @@ def main() -> int:
                    help="store even if invalid (valid=0), instead of rejecting")
     p.add_argument("--channel", choices=channel_fmt.CHANNELS, default=None,
                    help=f"default: ${channel_fmt.ENV_VAR}, else {channel_fmt.DEFAULT_CHANNEL}")
+    p.add_argument("--send", action="store_true",
+                   help="FEAT-07: also send it with feedback buttons; prints NO_REPLY")
     args = p.parse_args()
 
     text = Path(args.file).read_text() if args.file else sys.stdin.read()
@@ -88,8 +97,30 @@ def main() -> int:
                      (args.event_id,))
     conn.commit()
     cid = conn.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+    stored = f"stored coaching id={cid} for event {args.event_id} (valid={ok})"
+    if not args.send:
+        conn.close()
+        print(stored)
+        return 0
+
+    print(stored, file=sys.stderr)
+    if not ok:  # --force stored an invalid message: never deliver it
+        conn.close()
+        print("error: not sending an invalid message", file=sys.stderr)
+        return 2
+    proc = subprocess.run(
+        [sys.executable, str(REPO_DIR / "send_coaching.py"), "--kind", "t",
+         "--target-id", str(cid), "--db", cfg["db_path"]],
+        capture_output=True, text=True)
+    if proc.returncode != 0 or proc.stdout.strip() != "NO_REPLY":
+        conn.execute("UPDATE trigger_events SET message_sent = 0 WHERE id = ?", (args.event_id,))
+        conn.commit()
+        conn.close()
+        print(f"error: send failed, event {args.event_id} reset to unsent: "
+              f"{(proc.stderr or proc.stdout).strip()[-400:]}", file=sys.stderr)
+        return 3
     conn.close()
-    print(f"stored coaching id={cid} for event {args.event_id} (valid={ok})")
+    print("NO_REPLY")
     return 0
 
 

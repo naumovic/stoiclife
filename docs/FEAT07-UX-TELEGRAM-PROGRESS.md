@@ -4,10 +4,10 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 2 (feedback buttons), **in progress** (P2.0 done). The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
+- **Phase:** 2 (feedback buttons), **in progress** (P2.0–P2.8 done; P2.9 pending). The discrepancy fixes below (P2-D1..D11) were approved in the plan on 2026-10-07. Mihajlo asked to be told before any Phase 2 code starts.
 - **Branch:** `feat07-phase2-feedback` (from `main` @ e81e8c9). Don't push unless asked.
 - **Last done:** Phase 1 merged to `main`; this tracker created.
-- **Next:** P2.1–P2.8 (build + tests), then P2.9 live acceptance with Mihajlo.
+- **Next:** P2.9 live acceptance (button taps now; agent wiring on the next real journal entry). The coach chat needs `/new` so it reloads AGENTS.md.
 
 ## Live state pointers
 
@@ -54,14 +54,14 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ### Steps
 - [x] **P2.0** Live checks (2026-10-07): bold + strict-format markup via `tg.send` with buttons renders correctly (msg 69; CLI sends default to markdown→HTML, `send-*.js` textMode); an inbound DM turn answered `NO_REPLY` → no outbound send in the gateway log. Test row cleaned.
-- [ ] **P2.1** `send_coaching.py`: `--text-stdin`; r auto `data_flags_json`
-- [ ] **P2.2** `record_coaching.py --send`
-- [ ] **P2.3** `sc_dispatch.py`: `fb` up/down, `fbr` reasons, `more` → pending `fb_more:<k><id>` (2h), `noop`; `t` → `record_reaction.py --coaching-id`
-- [ ] **P2.4** `save_feedback_note.py`
-- [ ] **P2.5** `record_feedback.py` (typed legacy)
-- [ ] **P2.6** `coach-workspace/AGENTS.md` §1 step 0 + step 6, §2; size check
-- [ ] **P2.7** Cron `700b6841` message → `record_coaching … --send`, then `NO_REPLY` (job backed up)
-- [ ] **P2.8** `tests/test_feat07_phase2.py`; existing suites green
+- [x] **P2.1** `send_coaching.py`: `--text-stdin`; r auto `data_flags_json`
+- [x] **P2.2** `record_coaching.py --send` (exit 2 invalid / 3 send failed → event reset to unsent); `stoiclife_run.py` prints the command with `--send` on telegram only
+- [x] **P2.3** `sc_dispatch.py`: `fb` up/down, `fbr` reasons, `more` → pending `fb_more:<k><id>` (2h), `noop`; `t` → `record_reaction.py --coaching-id`
+- [x] **P2.4** `save_feedback_note.py`
+- [x] **P2.5** `record_feedback.py` (typed legacy)
+- [x] **P2.6** `coach-workspace/AGENTS.md` §1 step 0 + step 6/7, §2 (7.5k chars). ⚠️ The coach workspace *is* this repo dir, so the checked-out branch's AGENTS.md is what's live.
+- [x] **P2.7** Cron `700b6841` message → `record_coaching … --send`, then `NO_REPLY` (exit 3 → reply the text). Backup `~/.openclaw/cron/bak-feat07-p2-safetynet-20261007-225138.json`
+- [x] **P2.8** `tests/test_feat07_phase2.py` 43/43; phase1 67/67 (fb now live); existing suites green. `tg.py` gained a `STOICLIFE_TG_FAKE` test hook.
 - [ ] **P2.9** Live acceptance with Mihajlo (👍, 👎 → reason, Tell me more → note, `t` usefulness, no double send)
 - [ ] Phase summary for review (incl. any workspace files touched); merge on approval
 

@@ -228,13 +228,20 @@ def emit(conn, cfg, action, result, event_id, detail, dry, health=None,
         return
 
     if action == "SEND_FULL":
+        # FEAT-07 (P2-D4): on Telegram, record_coaching --send delivers the message itself
+        # with 👍/👎 buttons and prints NO_REPLY. WhatsApp (rollback path) is unchanged.
+        send = " --send" if channel == "telegram" else ""
         rec = (f"printf '%s' \"<your message>\" | python3 {REPO_DIR}/record_coaching.py "
-               f"--event-id {event_id} --channel {channel}")
+               f"--event-id {event_id} --channel {channel}{send}")
         print()
         print("# AGENT: compose the coaching per the payload below (strict format), then record+send it:")
         print(f"#   {rec}")
-        print("#   If record_coaching rejects (exit!=0), fix the format and retry once, then send "
-              "the message. In the journal hook this REPLACES the normal reply.")
+        if send:
+            print("#   If it rejects (exit 2), fix the format and retry once. On exit 0 it has sent the "
+                  "message for you: reply NO_REPLY. In the journal hook this REPLACES the normal reply.")
+        else:
+            print("#   If record_coaching rejects (exit!=0), fix the format and retry once, then send "
+                  "the message. In the journal hook this REPLACES the normal reply.")
         print()
         print(render_payload(
             conn, cfg, state=result.state, date=result.date, session=result.session,
