@@ -1,14 +1,14 @@
 # FEAT-07 Telegram UX: progress checklist
 
-The step-by-step tracker for FEAT-07. **If a session ends, start here.** The plan itself (plan v2 + review gaps G1–G20) is `docs/FEAT07-UX-TELEGRAM-SEED.md`. Current-system facts are in `docs/CURRENT-STATE.md`. Dated history goes in `docs/PROGRESS.md`. Tick boxes as steps land, and commit this file with the step.
+The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spec (v4, maintained with Claude Opus) is `docs/FEAT07-UX-TELEGRAM-SEED.md`; Code's early review gaps G1–G20 are in `docs/FEAT07-UX-TELEGRAM-REVIEW.md`. Current-system facts are in `docs/CURRENT-STATE.md`. Dated history goes in `docs/PROGRESS.md`. Tick boxes as steps land, and commit this file with the step.
 
 ## ▶ Resume here
 
-- **Phase:** 4 (morning/evening without prefixes), **not started**. Plan it and check it against the code (see the P3-B1 lesson under Phase 4), then get Mihajlo's OK before coding.
-- **Branch:** create `feat07-phase4-noprefix` from `main`. Don't push unless asked.
-- **Last done:** Phase 3 merged (check-in card via /mood /module, notes, message hook).
-- **Watch:** first real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2/3 bug.
-- **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. The plugin's `index.js` changes need a gateway restart; the Python ones don't.
+- **Phase:** 4 (morning/evening without prefixes), **planned, awaiting Mihajlo's OK** on P4-D1..D13, plus decisions on P4-D4 (late window) and P4-D5 (questions in the window). No code yet.
+- **Branch:** `feat07-phase4-noprefix` (from `main` @ 26c9311). Don't push unless asked.
+- **Last done:** v4 spec adopted as `docs/FEAT07-UX-TELEGRAM-SEED.md` (G1–G20 moved to `docs/FEAT07-UX-TELEGRAM-REVIEW.md`); Opus's two questions answered under Phase 4.
+- **Watch:** real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2/3 bug.
+- **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. Plugin `index.js` changes need a gateway restart; Python ones don't.
 
 ## Live state pointers
 
@@ -91,9 +91,37 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P3.8 Bug P3-B1: typed note not saved.** OpenClaw appends the inbound text to the recent-history block with no separator (`#82 … test card.\n\nRockin`); the coach read "Rockin" as part of msg 82, skipped step 0 and replied `NO_REPLY`. **Fix:** the plugin's `message_received` hook (coach account) pipes every non-command, non-prefixed message to `sc_dispatch.py` (kind `message`) → `save_pending_note.save_note(from_hook=True)` saves deterministically and leaves a `consumed` marker in state.json; the coach's step 0 on the same text (≤10 min) answers `SAVED` from it. AGENTS.md: "his message is the text after the last `#N` line", step 0 runs first, never `NO_REPLY` to him unless a script sent the reply. Gateway restart 23:25. **Live 23:27:** hook saved the note at :28.696, step 0 got SAVED at :32.7, one "Thanks, noted."; a normal "Ok then" → hook `saved=False`, step 0 `NONE`, normal reply. Tests phase3 48/48.
 - [x] Phase summary (PROGRESS.md 2026-10-07); merged to main
 
-## Phase 4: Morning/evening without prefixes
-- [ ] Planned and checked against code (`route_entry.py`, reply-to availability, D5 `NO_REPLY` for command crons G11). **Lesson from P3-B1:** don't rely on the LLM to run a routing script first. Have the plugin's `message_received` hook compute the route as the message arrives (and do any deterministic saving), and let the coach read that decision.
-- [ ] Built, tested, live-accepted, merged
+## Phase 4: Morning/evening without prefixes 📝 planned (awaiting Mihajlo's OK)
+
+### Answers to Opus's two questions (2026-10-07)
+- **Where the D32 layout fix lives:** only in our repo. `sc_dispatch.py` returns `channelData.telegram.buttons` (a supported `ReplyPayload` field that OpenClaw prefers over presentation), and `plugin/stoic-coach-ui/index.js` passes the reply through. Nothing in the OpenClaw install has changed: `find ~/.npm-global/lib/node_modules/openclaw -newermt 2026-10-06` → 0 files; the newest file there dates from the 2026-06-20 install. Upgrade risk: `channelData.telegram.buttons` is a channel-specific field and could change in a new release, so add "`/mood` shows a 2×5 card" to the post-upgrade checks.
+- **Ordering guarantee:** `message_received` (used for the P3-B1 fix) is **fire-and-forget**: `dispatch-*.js` calls it via `fireAndForgetHook(...)`, so there's **no** ordering guarantee. The note fix was safe only because the consumed marker works in either order. Phase 4 therefore uses two **awaited** hooks instead (P4-D1).
+
+### Discrepancies vs v4 (proposed fixes)
+- **P4-D1 Route via `before_dispatch` + `before_prompt_build`, both awaited.** `before_dispatch` runs on the inbound path *before the agent is dispatched*: `await … hookRunner.runBeforeDispatch(...)` in `dispatch-*.js`, followed by the agent dispatch. It gets the clean message `content`, `accountId`, `conversationId` and `replyToId`. The plugin computes the route there (Python `route_entry.py`, unit-tested) and records it, keyed by session key. `before_prompt_build` (awaited before the model call in `attempt.prompt-helpers-*.js`) then **puts the route into the coach's prompt** (`prependContext`, e.g. `[stoiclife route] morning · prompt msg 312 · day 2026-10-08`). The coach never has to run anything to learn the route. Ordering is guaranteed by the code path, not by timing. Both hooks log a timestamped line, which gives the acceptance evidence.
+- **P4-D2 Notes and "Tell me more" become fully LLM-free.** `before_dispatch` can return `{handled: true, text}`, and OpenClaw then sends that text and **skips the agent**. A pending note/`fb_more` is saved and answered "Thanks, noted." right there. This supersedes D39's implementation: the `message_received` hook and AGENTS.md step 0 are removed (the consumed marker becomes unused).
+- **P4-D3 Prompt buttons: script sends are 3 per row (D31).** The 2×5 card can't be embedded in a script-sent prompt. Prompt buttons: `[✍️ Write entry] [Skip today]` + `[🙂 Check in]`. Check in → `sc:card:<day>`, and the plugin **replies with the full 2×5 card** (callback replies take exact rows). Evening shows Check in only if no mood is logged that day.
+- **P4-D4 A hard 11:00 expiry would break FEAT-05.** A morning prep typed at 12:59 would become conversation; today the coach asks "Save this as your morning prep?". Proposal: before the expiry, free text → entry (deterministic). After it, until the next prompt, route `late:morning` → the coach asks that same confirmation (today's behaviour). Same for evening after 03:00.
+- **P4-D5 Questions inside the open window.** A pure state rule saves "what was my HRV?" typed at 08:00 as the morning entry. **Decision needed:** (a) accept it, or (b) a message ending in `?` → conversation, even while the window is open.
+- **P4-D6 `adhoc` isn't a session anywhere downstream.** `save_entry.py`, `stoiclife_run.py` and the trigger matrix only know morning/evening (and safety-net). Proposal: `/journal` (and Write after expiry) opens the **current** session: morning if there's no morning entry yet today and the evening prompt hasn't gone out, else evening.
+- **P4-D7 Skips have nowhere to be stored.** Migration `002_prompt_events`: one row per prompt (day, session, message_id, sent_at, expires_at, skipped_at, entry_id, opened_by). Skip writes `skipped_at` and clears the pending slot and legacy `awaiting_response`. It also gives Phase 6 its completion, skip and time-to-entry numbers.
+- **P4-D8 Evening gets its own script.** New `coach_evening.sh` in stoiclife (same pattern as `coach_morning.sh`), cron `7e8a7edd` repointed (job backed up). Workspace `evening-prompt.sh` stays untouched, since the WhatsApp rollback uses it.
+- **P4-D9 Prompt send safety.** D5 (`NO_REPLY` from a command cron sends nothing) is documented and already relied on by the weekly job; verify live once with a labelled one-shot job. If the CLI send fails, the script prints the prompt as plain text instead, so a prompt is never lost.
+- **P4-D10 Keep legacy `state.json` in step.** Prompts still call `set_prompt_state.py` (prompt-date attribution in `save_entry.logical_date`). The new pending slot sits alongside it, and skip/expiry clear both.
+- **P4-D11 Fallback (v4).** If the coach's prompt has no route (hook failed), the injected line says `no route recorded`. The coach treats the message as conversation, the gap is logged, and it may suggest `/journal`.
+- **P4-D12 One gateway restart** (shim gains `before_dispatch` + `before_prompt_build`; `message_received` removed).
+- **P4-D13 Verify live that both hooks see the same session key.** If they don't, match on "latest unconsumed route for agent `coach`, < 2 min old".
+
+### Steps (after OK)
+- [ ] **P4.1** Migration `002_prompt_events`; `route_entry.py` (prefix → reply-to → pending window → late → conversation; expiries in the travel tz) + unit tests
+- [ ] **P4.2** `sc_dispatch.py`: kinds `dispatch` (route + handled notes) and `prompt` (route injection); `sc:write`, `sc:skip`, `sc:card`; `/journal`, `/skip` live
+- [ ] **P4.3** `coach_morning.sh` → helper send with buttons + `prompt_events`/`ui_messages`/pending, print `NO_REPLY` (fallback: plain text); new `coach_evening.sh`
+- [ ] **P4.4** AGENTS.md §1: act on the injected route; remove prefix detection, the forgotten-prefix question (except for `late:*`) and step 0
+- [ ] **P4.5** Plugin shim: `before_dispatch` + `before_prompt_build`; drop `message_received`
+- [ ] **P4.6** Tests (routing rules + expiry edges, handlers, scripts with the fake sender); all suites green
+- [ ] **P4.7** Quiet-window restart; repoint the evening cron; one-shot command-cron `NO_REPLY` check
+- [ ] **P4.8** Live acceptance: plain text after a prompt → entry (no prefix); Write/Skip/Check in; `/journal` `/skip`; a question → conversation; legacy prefix; logs show route recorded → injected before the model ran
+- [ ] Phase summary; merge on approval
 
 ## Phase 5: 11am update
 - [ ] Current 11:00 + FEAT-05 behaviour documented; smallest change proposed (D17)
