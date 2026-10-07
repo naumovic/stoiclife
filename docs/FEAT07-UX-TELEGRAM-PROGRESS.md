@@ -4,7 +4,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 
 ## ▶ Resume here
 
-- **Phase:** 3 (mood/module buttons + commands), **in progress**: P3.1–P3.5 done; next P3.6 restart + P3.7 live test. Until the restart, `/mood` replies are empty (the old shim drops `reply`); taps work.
+- **Phase:** 3 (mood/module buttons + commands), **in progress**: P3.1–P3.5 done; P3.6 restart done; next P3.7 live test.
 - **Branch:** `feat07-phase3-checkins` (from `main` @ 985a066). Don't push unless asked.
 - **Last done:** Phase 2 merged; Phase 3 planned + checked against the code.
 - **Watch:** first real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2 bug.
@@ -86,7 +86,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The pla
 - [x] **P3.3** `save_pending_note.py` (rename + `note:*`); AGENTS.md step 0 path
 - [x] **P3.4** Plugin shim: pass the dispatcher reply object through (text, channelData, presentation)
 - [x] **P3.5** `tests/test_feat07_phase3.py` 33/33; phase1 67/67 (card semantics), phase2 43/43 (rename); existing suites green
-- [ ] **P3.6** Quiet-window gateway restart (shim change); `is-active` + all channels back; `/mood` shows in the menu
+- [x] **P3.6** Gateway restart 2026-10-07 23:14 (shim pass-through live); `is-active`, plugin registered, WhatsApp + both Telegram bots back
 - [ ] **P3.7** Live acceptance: `/mood` → 2×5 card; mood + module taps re-render; note via "Add a note"; an old card → expired; no agent turn on taps or commands; test rows cleaned
 - [ ] Phase summary; merge on approval
 
