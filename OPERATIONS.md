@@ -33,9 +33,11 @@ All Stoic coaching goes through **@stoiclife_coach_bot** (OpenClaw telegram acco
 | Job | id | Payload |
 |---|---|---|
 | Coach Morning (07:30) | `73c880ac` | command `~/projects/stoiclife/coach_morning.sh` (sets morning prompt state) |
-| Coach Evening Review (20:30) | `7e8a7edd` | command `~/.openclaw/workspace/scripts/evening-prompt.sh` (sets evening prompt state) |
+| Coach Evening Review (20:30) | `7e8a7edd` | command `~/projects/stoiclife/coach_evening.sh` (FEAT-07 D50; sets evening prompt state, sends with buttons via `send_prompt.py`; was `workspace/scripts/evening-prompt.sh`, backup `~/.openclaw/cron/bak-feat07-p4-evening-20261007-235652.json`) |
 | Coach Weekly Review (Sun 08:00) | `5dcb0e1a` | command `cd ~/projects/stoiclife && out=$(python3 weekly_review.py --section both --channel telegram) \|\| exit 1; echo "${out:-NO_REPLY}"` |
-| Coach Safety-Net (11:00) | `700b6841` | agentTurn, the prompt below with `--channel telegram` on `stoiclife_run.py` + `record_coaching.py`, and "using exactly the bold markup the payload shows" instead of the `*Observation:*` wording |
+| Coach Daily Update (11:00) | `80be6ec8` | command `cd ~/projects/stoiclife && python3 daily_update.py` (FEAT-07 D53–D58: silent update; engine only when synced; CLARIFY sent directly; SEND_FULL → `openclaw agent` coach turn in session `agent:coach:stoiclife-11am-<date>`; timeout 420 s) |
+| Coach Daily Update re-check (12:00) | `522605b8` | command `… python3 daily_update.py --retry` (only acts if 11:00 logged `pending_sync`; still not synced → no engine run that day, logged `not_synced`) |
+| ~~Coach Safety-Net (11:00)~~ | `700b6841` | **disabled 2026-10-08** (replaced by the two jobs above; backup `~/.openclaw/cron/bak-feat07-p5-safetynet-20261008-002646.json`). Rollback: `openclaw cron edit 700b6841 --enable` + `--disable` the two Daily Update jobs. |
 
 Command payloads deliver stdout verbatim (no model turn); `NO_REPLY` stays silent. Test a command job without touching prompt state: a one-shot copy with `--at +1m --delete-after-run --command-env STOICLIFE_SKIP_PROMPT_STATE=1`. `cron list` hides disabled jobs; check `cron_jobs` in `~/.openclaw/state/openclaw.sqlite`.
 

@@ -4,9 +4,9 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 
 ## ▶ Resume here
 
-- **Phase:** 5 (11am update), **in progress**: decisions recorded as spec D53–D59; building P5.1.
-- **Branch:** `feat07-phase5-11am` (from `main` @ 7c3bf32). Don't push unless asked.
-- **Open:** bug P4-B1 (coach replies to a bare "thanks"?); first real Phase 4 day 2026-10-08.
+- **Phase:** 5 built and live on branch `feat07-phase5-11am` (checked out, so it's what runs). **Next:** check the first real 11:00 run (P5.3b), then merge on Mihajlo's OK.
+- **Open:** bug P4-B1 (coach replies to a bare "thanks"?); first real Phase 4 day (2026-10-08).
+- **Rollback (Phase 5):** `openclaw cron edit 700b6841 --enable` and `--disable` `80be6ec8` + `522605b8` (OPERATIONS.md).
 - **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. Plugin `index.js` changes need a gateway restart; Python ones don't.
 
 ## Live state pointers
@@ -129,7 +129,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [ ] **Bug P4-B1:** the coach answered `Thanks` (CONVERSATION route) with `NO_REPLY`. The route line now says "always reply, even to a bare thanks; never NO_REPLY here" (Python only, no restart). Verify on the next casual message.
 - [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed
 
-## Phase 5: 11am update 🔨 in progress (OK'd 2026-10-08 as spec D53–D59)
+## Phase 5: 11am update ✅ built + live (awaiting the first real 11:00 run, then merge)
 
 Step 1 (understand first) is written up in `docs/CURRENT-STATE.md` §7.
 
@@ -155,9 +155,10 @@ Missing pieces get buttons: `No morning entry yet` → `[✍️ Write entry]`; `
 - Asked for a command cron instead of the agentTurn → verified clean on 2026.6.8 (D58).
 
 ### Steps
-- [ ] **P5.1** Migration 003; `daily_update.py` (sync check; update line(s) + buttons, silent; runs `stoiclife_run.py` only when synced; CLARIFY sent directly; SEND_FULL → `openclaw agent` turn; `--retry`; idempotent); route-line exclusion for `stoiclife-*` sessions; `record_coaching --send` already-sent guard; tests
-- [ ] **P5.2** Crons: new command jobs 11:00 + 12:00 retry; disable `700b6841` (backup); OPERATIONS.md cron table
-- [ ] **P5.3** Live check: dry run against today's data, then the real 11:00 run
+- [x] **P5.1** Migration 003 (live backup `stoic_journal.db.bak-mig003-20261008-002638`); `daily_update.py`; route-line exclusion for `agent:coach:stoiclife-*`; `record_coaching --send` already-sent guard; tests phase5 24/24, phase1 time-of-day fix, phase2 adjusted for the guard, all suites green
+- [x] **P5.2** Crons: `80be6ec8` Coach Daily Update (11:00) + `522605b8` re-check (12:00), command jobs, exact, 420 s; `700b6841` disabled (backup `~/.openclaw/cron/bak-feat07-p5-safetynet-20261008-002646.json`); OPERATIONS.md cron table updated
+- [x] **P5.3a** Agent CLI path verified live (2026-10-08 00:22): a `NO_REPLY` turn → suppressed; a one-line turn → sent once; own session. Real cron path verified with a one-shot (00:28): not-synced branch → one silent message (124) with ✍️/🙂, run `ok`/`not-delivered`. Test row removed.
+- [ ] **P5.3b** First real 11:00 run (2026-10-08): silent update with last night's data; engine ran; check `daily_updates`, `stoic.log`, `cron_run_logs`. A flagged day (CLARIFY/SEND_FULL) is verified when it happens.
 - [ ] Phase summary; merge on approval
 
 ## Phase 6: Self-test metrics
