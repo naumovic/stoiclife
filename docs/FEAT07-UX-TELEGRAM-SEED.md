@@ -13,11 +13,11 @@ This file is the **spec**. Live progress (current phase, branch, step checkboxes
 | 1 — Foundation | ✅ Merged to `main` (not pushed) |
 | 2 — Feedback buttons | ✅ Merged to `main` (not pushed). Live check: first real 07:30 / 20:30 replies |
 | 3 — Check-in card | ✅ Merged to `main` at `26c9311` (not pushed). Bug P3-B1 fixed (D39). Live check: real `/mood` use |
-| 4 — Morning/evening routing | 📝 Routing approach changed (D40); awaiting "plan Phase 4" discrepancy review |
+| 4 — Morning/evening routing | 🔨 In progress: decisions D41–D52 agreed 2026-10-07 |
 | 5 — 11am update | Not started |
 | 6 — Instrumentation | Not started |
 
-> **v4 changes:** Phases 2–3 merged; D39 (plugin captures pending text on arrival) and D40 (Phase 4 routing decided by the plugin, not by the agent running a script) added; Phase 4 rewritten accordingly. **v3 changes:** Phase 2 and 3 revised after Code's pre-implementation review (D22–D38); D18 corrected. Earlier **v2 changes:** updated after the full Phase 0 findings (`docs/CURRENT-STATE.md`). Decisions D1–D21 are recorded in the next section. Main changes: 1–10 mood scale, evening review in scope, no ForceReply, reply keyboard or voice, free text still goes to the agent but its routing is decided by a deterministic script, and the 11am update builds on the existing trigger engine.
+> **v4.1 (Code, 2026-10-07):** Phase 4 decisions D41–D52 recorded after Code's review and Mihajlo's answers. **v4 changes:** Phases 2–3 merged; D39 (plugin captures pending text on arrival) and D40 (Phase 4 routing decided by the plugin, not by the agent running a script) added; Phase 4 rewritten accordingly. **v3 changes:** Phase 2 and 3 revised after Code's pre-implementation review (D22–D38); D18 corrected. Earlier **v2 changes:** updated after the full Phase 0 findings (`docs/CURRENT-STATE.md`). Decisions D1–D21 are recorded in the next section. Main changes: 1–10 mood scale, evening review in scope, no ForceReply, reply keyboard or voice, free text still goes to the agent but its routing is decided by a deterministic script, and the 11am update builds on the existing trigger engine.
 
 ---
 
@@ -80,6 +80,23 @@ This file is the **spec**. Live progress (current phase, branch, step checkboxes
 |---|---|---|
 | D39 | **Bug P3-B1:** OpenClaw appended the user's message to the end of the chat history, so the coach misread it and the note was lost | The plugin **saves pending text (notes, "Tell me more") the moment the message arrives**, before the coach is involved. The coach only sends the short "Thanks, noted." Fixed and verified live. |
 | D40 | Phase 4 routing via the agent running `route_entry.py` first relies on the LLM remembering to do so, and P3-B1 showed the agent's view of the message can be unreliable | **Supersedes the routing part of D8.** The plugin decides the route as each message arrives (legacy prefix → reply-to match → pending slot → conversation) and records the decision. The agent only acts on that recorded decision. Still no conversation binding: the message continues to the agent as today. `route_entry.py` becomes the plugin's routing logic (or a module it calls), and keeps unit tests for every rule and expiry edge case. |
+
+### Phase 4 decisions (Code's review P4-D1..D13 + Mihajlo's answers, 2026-10-07)
+
+| # | Issue | Decision |
+|---|---|---|
+| D41 | The P3-B1 hook (`message_received`) is fire-and-forget, so it can't guarantee a route exists before the coach reads it | Route with two hooks OpenClaw **awaits**: `before_dispatch` (inbound, before the agent is dispatched) computes and records the route; `before_prompt_build` (before the model call) writes it into the coach's prompt. Ordering comes from the code path, not timing. Both log timestamped lines. |
+| D42 | Notes and "Tell me more" still needed the coach for the ack | `before_dispatch` handles them completely: saves the text, replies "Thanks, noted.", and the agent is skipped (`{handled: true, text}`). Replaces D39's implementation; AGENTS.md step 0 and the `message_received` hook are removed. |
+| D43 | The coach could misread which text is the message (P3-B1) | The injected route line carries the message text itself. The coach uses that text verbatim for the entry. |
+| D44 | **Hold and confirm** (one component, used by D45 and D46) | The plugin holds the message (not passed to the coach) and sends two buttons. A tap records the decision, ticks the chosen button (buttons only, D26), and passes the tap on to the coach, which then gets the route plus the **held text** (D41, D43). One hold slot per chat; a newer held message replaces an older one, whose buttons then say "expired". If sending the buttons fails, the coach asks in text instead (today's behaviour). |
+| D45 | A hard 11:00 expiry would turn a late morning prep into chat (breaks FEAT-05) | Before 11:00, anything typed after the morning prompt is the entry. After 11:00, **until the evening prompt is sent** and while the morning prep is unanswered and not skipped, a message is held with `[📝 Save as morning prep] [💬 Just chatting]`. Evening: same after 03:00, until the next morning prompt. |
+| D46 | Questions typed while a prompt window is open | A message ending in `?` inside an open window is held with `[📝 It's my entry] [❓ It's a question]`, never auto-classified (Stoic entries often end in questions). Everything else in the window is the entry. |
+| D47 | Script-sent prompts get 3 buttons per row (D31) | Prompt buttons: `[✍️ Write entry] [Skip today] [🙂 Check in]`. Check in replies with the full 2×5 card (callback replies keep exact rows). Evening shows Check in only if no mood is logged that day. |
+| D48 | Skips had nowhere to be recorded | Migration `002_prompt_events`: one row per prompt (day, session, message id, sent, expires, skipped, entry id). It also feeds the Phase 6 completion, skip and time-to-entry metrics. |
+| D49 | `adhoc` is not a session anywhere downstream | `/journal` and ✍️ Write open the **current** session: morning if there's no morning entry yet today and the evening prompt hasn't gone out; otherwise evening. Text after them is the entry directly (no hold). |
+| D50 | Evening prompt script lives in the workspace and serves the WhatsApp rollback | New `coach_evening.sh` in stoiclife; cron `7e8a7edd` repointed (job backed up). Workspace `evening-prompt.sh` untouched. |
+| D51 | A failed buttoned send could lose a prompt | If the helper send fails, the prompt script prints the prompt as plain text (today's behaviour). D5's `NO_REPLY` is verified live once with a labelled one-shot job. |
+| D52 | Gateway restart | One restart for the plugin changes (two hooks in, `message_received` out), per D20. |
 
 ---
 
@@ -248,6 +265,8 @@ Telegram limits `callback_data` to 64 bytes. The plugin claims namespace `sc`, a
 ## Phase 4 — Morning and evening without prefixes
 
 **Goal:** Users journal by simply typing after a prompt.
+
+> **Read with D41–D52**, which refine the steps below: routing hooks (D41), LLM-free notes (D42), hold and confirm after 11:00 / 03:00 and for `?` messages (D44–D46), prompt buttons (D47), `prompt_events` (D48), `/journal` → current session (D49), evening script (D50), fallback (D51).
 
 1. **Morning message** (`coach_morning.sh`): send via the helper with buttons, then print `NO_REPLY` (D5).
    ```

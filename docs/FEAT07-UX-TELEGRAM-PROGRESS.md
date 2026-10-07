@@ -4,7 +4,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 
 ## ▶ Resume here
 
-- **Phase:** 4 (morning/evening without prefixes), **planned, awaiting Mihajlo's OK** on P4-D1..D13, plus decisions on P4-D4 (late window) and P4-D5 (questions in the window). No code yet.
+- **Phase:** 4 (morning/evening without prefixes), **in progress**: decisions recorded as spec D41–D52; building P4.1 onwards.
 - **Branch:** `feat07-phase4-noprefix` (from `main` @ 26c9311). Don't push unless asked.
 - **Last done:** v4 spec adopted as `docs/FEAT07-UX-TELEGRAM-SEED.md` (G1–G20 moved to `docs/FEAT07-UX-TELEGRAM-REVIEW.md`); Opus's two questions answered under Phase 4.
 - **Watch:** real entries on 2026-10-08 should arrive once each, with 👍/👎. Treat anything odd as a Phase 2/3 bug.
@@ -91,7 +91,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [x] **P3.8 Bug P3-B1: typed note not saved.** OpenClaw appends the inbound text to the recent-history block with no separator (`#82 … test card.\n\nRockin`); the coach read "Rockin" as part of msg 82, skipped step 0 and replied `NO_REPLY`. **Fix:** the plugin's `message_received` hook (coach account) pipes every non-command, non-prefixed message to `sc_dispatch.py` (kind `message`) → `save_pending_note.save_note(from_hook=True)` saves deterministically and leaves a `consumed` marker in state.json; the coach's step 0 on the same text (≤10 min) answers `SAVED` from it. AGENTS.md: "his message is the text after the last `#N` line", step 0 runs first, never `NO_REPLY` to him unless a script sent the reply. Gateway restart 23:25. **Live 23:27:** hook saved the note at :28.696, step 0 got SAVED at :32.7, one "Thanks, noted."; a normal "Ok then" → hook `saved=False`, step 0 `NONE`, normal reply. Tests phase3 48/48.
 - [x] Phase summary (PROGRESS.md 2026-10-07); merged to main
 
-## Phase 4: Morning/evening without prefixes 📝 planned (awaiting Mihajlo's OK)
+## Phase 4: Morning/evening without prefixes 🔨 in progress (OK'd 2026-10-07 as spec D41–D52)
 
 ### Answers to Opus's two questions (2026-10-07)
 - **Where the D32 layout fix lives:** only in our repo. `sc_dispatch.py` returns `channelData.telegram.buttons` (a supported `ReplyPayload` field that OpenClaw prefers over presentation), and `plugin/stoic-coach-ui/index.js` passes the reply through. Nothing in the OpenClaw install has changed: `find ~/.npm-global/lib/node_modules/openclaw -newermt 2026-10-06` → 0 files; the newest file there dates from the 2026-06-20 install. Upgrade risk: `channelData.telegram.buttons` is a channel-specific field and could change in a new release, so add "`/mood` shows a 2×5 card" to the post-upgrade checks.
@@ -112,15 +112,20 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - **P4-D12 One gateway restart** (shim gains `before_dispatch` + `before_prompt_build`; `message_received` removed).
 - **P4-D13 Verify live that both hooks see the same session key.** If they don't, match on "latest unconsumed route for agent `coach`, < 2 min old".
 
-### Steps (after OK)
-- [ ] **P4.1** Migration `002_prompt_events`; `route_entry.py` (prefix → reply-to → pending window → late → conversation; expiries in the travel tz) + unit tests
-- [ ] **P4.2** `sc_dispatch.py`: kinds `dispatch` (route + handled notes) and `prompt` (route injection); `sc:write`, `sc:skip`, `sc:card`; `/journal`, `/skip` live
-- [ ] **P4.3** `coach_morning.sh` → helper send with buttons + `prompt_events`/`ui_messages`/pending, print `NO_REPLY` (fallback: plain text); new `coach_evening.sh`
-- [ ] **P4.4** AGENTS.md §1: act on the injected route; remove prefix detection, the forgotten-prefix question (except for `late:*`) and step 0
-- [ ] **P4.5** Plugin shim: `before_dispatch` + `before_prompt_build`; drop `message_received`
-- [ ] **P4.6** Tests (routing rules + expiry edges, handlers, scripts with the fake sender); all suites green
+### Mihajlo's answers (2026-10-07) → spec D44–D46
+- P4-D4: after 11:00 (until the evening prompt) the **plugin** holds the message with `[📝 Save as morning prep] [💬 Just chatting]`; evening the same after 03:00.
+- P4-D5: a `?` message inside an open window is held with `[📝 It's my entry] [❓ It's a question]`.
+- One "hold and confirm" component for both. Mechanism (verified in `bot-*.js`): the tap handler returns `handled: false`, so OpenClaw sends a synthetic `callback_data: sc:hold:…` message through the normal pipeline; `before_dispatch` resolves the hold and records the route with the held text.
+
+### Steps
+- [ ] **P4.1** Migration `002_prompt_events`; `route_entry.py` (prefix → reply-to → write/journal → window (`?` → hold) → late (hold) → conversation; expiries in the travel tz) + `holds` in state.json + unit tests
+- [ ] **P4.2** `sc_dispatch.py`: kinds `dispatch` (route, notes handled, holds) and `prompt` (route injection); `sc:hold`, `sc:write`, `sc:skip`, `sc:card`; `/journal`, `/skip` live; prompt answered-linking on save (via `checkins.merge_into_entry`)
+- [ ] **P4.3** `coach_morning.sh` + new `coach_evening.sh`: helper send with buttons, `prompt_events` + `ui_messages`, print `NO_REPLY`; plain-text fallback
+- [ ] **P4.4** AGENTS.md §1: act on the injected route (use its text verbatim); remove prefix detection, the forgotten-prefix question and step 0
+- [ ] **P4.5** Plugin shim: `before_dispatch` + `before_prompt_build`; `passToAgent` support for taps; drop `message_received`
+- [ ] **P4.6** Tests (every routing rule + expiry edges, holds, handlers, scripts with the fake sender); all suites green
 - [ ] **P4.7** Quiet-window restart; repoint the evening cron; one-shot command-cron `NO_REPLY` check
-- [ ] **P4.8** Live acceptance: plain text after a prompt → entry (no prefix); Write/Skip/Check in; `/journal` `/skip`; a question → conversation; legacy prefix; logs show route recorded → injected before the model ran
+- [ ] **P4.8** Live acceptance: plain text after a prompt → entry; `?` → hold buttons; late → hold buttons; Write/Skip/Check in; `/journal` `/skip`; legacy prefix; notes LLM-free; logs show route recorded → injected before the model ran
 - [ ] Phase summary; merge on approval
 
 ## Phase 5: 11am update
