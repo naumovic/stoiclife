@@ -71,6 +71,16 @@ def main() -> int:
         print(f"error: trigger_events id {args.event_id} not found", file=sys.stderr)
         return 1
 
+    # D58: never deliver an event twice. The agent CLI's documented timeout fallback can
+    # run an escalation turn a second time; the event's message_sent flag is the guard.
+    if args.send:
+        sent = conn.execute("SELECT message_sent FROM trigger_events WHERE id = ?",
+                            (args.event_id,)).fetchone()
+        if sent and sent["message_sent"]:
+            print(f"event {args.event_id} already sent; nothing stored or sent", file=sys.stderr)
+            print("NO_REPLY")
+            return 0
+
     ok, errors = validate(text, channel_fmt.resolve(args.channel))
     if not ok and not args.force:
         print("rejected — coaching failed format validation:", file=sys.stderr)

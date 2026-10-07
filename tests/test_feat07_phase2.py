@@ -126,6 +126,8 @@ check("--send delivered once with t buttons", len(fake_sends()) == n_before + 1
 check("event marked sent", conn.execute("SELECT message_sent FROM trigger_events WHERE id=?",
                                         (ev2,)).fetchone()[0] == 1)
 T1 = tc[0]
+with conn:  # since Phase 5, --send refuses an already-sent event; reset to test validation itself
+    conn.execute("UPDATE trigger_events SET message_sent = 0 WHERE id = ?", (ev2,))
 n_before = len(fake_sends())
 r = run("record_coaching.py", "--event-id", str(ev2), "--channel", "telegram", "--send",
         "--config", str(CFG), stdin="not the strict format")

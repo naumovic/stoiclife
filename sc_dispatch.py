@@ -296,6 +296,7 @@ def handle_command(req: dict, conn=None, now: datetime | None = None) -> dict:
 
 
 SESSION_LABEL = {"morning": "morning prep", "evening": "evening review"}
+SCRIPT_SESSION_PREFIX = "agent:coach:stoiclife-"  # sessions started by our scripts (daily_update.py)
 
 
 # --- Phase 4: prompts, write/skip/card, holds (D44–D49) -------------------------------
@@ -438,9 +439,11 @@ def route_line(row: dict) -> str:
 
 def handle_inject(req: dict, conn=None, now: datetime | None = None) -> dict:
     """before_prompt_build (awaited, before the model call, D41): the route for this turn."""
+    key = req.get("sessionKey")
+    if str(key or "").startswith(SCRIPT_SESSION_PREFIX):  # D58: script-started turns get no route line
+        return {}
     conn = conn or tg.db_connect()
     now = now or checkins.now_local()
-    key = req.get("sessionKey")
     since = (now - timedelta(minutes=2)).isoformat()
     cols = ("id", "route", "session", "source", "text")
     row = conn.execute("SELECT id, route, session, source, text FROM route_events WHERE session_key = ? "

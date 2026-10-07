@@ -243,8 +243,11 @@ check("set_prompt_state keeps pending (G2)", r.returncode == 0 and st.get("pendi
       and st["awaiting_response"] is True, r.stderr + json.dumps(st))
 
 with sqlite3.connect(hdb) as c:
-    checkins.upsert(c, chat_id=CHAT, ctype="mood", value=8, source="button")
-    checkins.upsert(c, chat_id=CHAT, ctype="module", value="emotions", source="button")
+    # save_entry dates this entry by the prompt's calendar date (set_prompt_state just ran),
+    # so pin the check-ins to that day: before 07:30 the logical day would be yesterday.
+    prompt_day = datetime.now(TZ).strftime("%Y-%m-%d")
+    checkins.upsert(c, chat_id=CHAT, ctype="mood", value=8, source="button", day=prompt_day)
+    checkins.upsert(c, chat_id=CHAT, ctype="module", value="emotions", source="button", day=prompt_day)
 r = subprocess.run([sys.executable, str(SCRIPTS / "save_entry.py"), "--session", "morning",
                     "--response", "plain entry, no inline tags"],
                    capture_output=True, text=True, env=env)
