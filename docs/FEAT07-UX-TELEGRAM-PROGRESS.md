@@ -4,7 +4,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 
 ## ▶ Resume here
 
-- **Phase:** 5 (11am update), **planned, awaiting Mihajlo's OK** on P5-D1..D8, plus decisions on P5-D4 (one ping) and P5-D6 (defer evaluation when not synced). No code yet. Record the agreed decisions in the spec as D53+.
+- **Phase:** 5 (11am update), **in progress**: decisions recorded as spec D53–D59; building P5.1.
 - **Branch:** `feat07-phase5-11am` (from `main` @ 7c3bf32). Don't push unless asked.
 - **Open:** bug P4-B1 (coach replies to a bare "thanks"?); first real Phase 4 day 2026-10-08.
 - **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. Plugin `index.js` changes need a gateway restart; Python ones don't.
@@ -129,7 +129,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [ ] **Bug P4-B1:** the coach answered `Thanks` (CONVERSATION route) with `NO_REPLY`. The route line now says "always reply, even to a bare thanks; never NO_REPLY here" (Python only, no restart). Verify on the next casual message.
 - [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed
 
-## Phase 5: 11am update 📝 planned (awaiting Mihajlo's OK)
+## Phase 5: 11am update 🔨 in progress (OK'd 2026-10-08 as spec D53–D59)
 
 Step 1 (understand first) is written up in `docs/CURRENT-STATE.md` §7.
 
@@ -150,10 +150,14 @@ This morning: Mood 7 · Creativity · entry ✓
 ```
 Missing pieces get buttons: `No morning entry yet` → `[✍️ Write entry]`; `No check-in yet` → `[🙂 Check in]`.
 
-### Steps (after OK)
-- [ ] **P5.1** Migration 003; `daily_update.py` (data line from today's row + 7-day deltas via `trigger_matrix` helpers; morning line from `journal_entries` / `checkin_events`; buttons; wraps `stoiclife_run.py`; `--retry`; idempotent) + tests
-- [ ] **P5.2** 11:00 cron message → `daily_update.py` (backup); new 12:00 retry cron
-- [ ] **P5.3** Live check: a dry run against today's real data, then the real 11:00 run (or a labelled one-shot)
+### Mihajlo's answers (2026-10-08) → spec D53–D59
+- P5-D4: one ping (the update is always silent). P5-D6: (a), postpone the engine to 12:00; still missing at 12:00 → no engine run that day, logged `not_synced`.
+- Asked for a command cron instead of the agentTurn → verified clean on 2026.6.8 (D58).
+
+### Steps
+- [ ] **P5.1** Migration 003; `daily_update.py` (sync check; update line(s) + buttons, silent; runs `stoiclife_run.py` only when synced; CLARIFY sent directly; SEND_FULL → `openclaw agent` turn; `--retry`; idempotent); route-line exclusion for `stoiclife-*` sessions; `record_coaching --send` already-sent guard; tests
+- [ ] **P5.2** Crons: new command jobs 11:00 + 12:00 retry; disable `700b6841` (backup); OPERATIONS.md cron table
+- [ ] **P5.3** Live check: dry run against today's data, then the real 11:00 run
 - [ ] Phase summary; merge on approval
 
 ## Phase 6: Self-test metrics

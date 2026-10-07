@@ -14,10 +14,10 @@ This file is the **spec**. Live progress (current phase, branch, step checkboxes
 | 2 — Feedback buttons | ✅ Merged to `main`, pushed. Live check: first real 07:30 / 20:30 replies |
 | 3 — Check-in card | ✅ Merged to `main` at `26c9311`, pushed. Bug P3-B1 fixed (D39). Live check: real `/mood` use |
 | 4 — Morning/evening routing | ✅ Merged to `main` and pushed (2026-10-08). Live check: first real prompt day |
-| 5 — 11am update | Not started |
+| 5 — 11am update | 🔨 In progress: decisions D53–D59 agreed 2026-10-08 |
 | 6 — Instrumentation | Not started |
 
-> **v4.1 (Code, 2026-10-07):** Phase 4 decisions D41–D52 recorded after Code's review and Mihajlo's answers. **v4 changes:** Phases 2–3 merged; D39 (plugin captures pending text on arrival) and D40 (Phase 4 routing decided by the plugin, not by the agent running a script) added; Phase 4 rewritten accordingly. **v3 changes:** Phase 2 and 3 revised after Code's pre-implementation review (D22–D38); D18 corrected. Earlier **v2 changes:** updated after the full Phase 0 findings (`docs/CURRENT-STATE.md`). Decisions D1–D21 are recorded in the next section. Main changes: 1–10 mood scale, evening review in scope, no ForceReply, reply keyboard or voice, free text still goes to the agent but its routing is decided by a deterministic script, and the 11am update builds on the existing trigger engine.
+> **v4.2 (Code, 2026-10-08):** Phase 5 decisions D53–D59. **v4.1 (Code, 2026-10-07):** Phase 4 decisions D41–D52 recorded after Code's review and Mihajlo's answers. **v4 changes:** Phases 2–3 merged; D39 (plugin captures pending text on arrival) and D40 (Phase 4 routing decided by the plugin, not by the agent running a script) added; Phase 4 rewritten accordingly. **v3 changes:** Phase 2 and 3 revised after Code's pre-implementation review (D22–D38); D18 corrected. Earlier **v2 changes:** updated after the full Phase 0 findings (`docs/CURRENT-STATE.md`). Decisions D1–D21 are recorded in the next section. Main changes: 1–10 mood scale, evening review in scope, no ForceReply, reply keyboard or voice, free text still goes to the agent but its routing is decided by a deterministic script, and the 11am update builds on the existing trigger engine.
 
 ---
 
@@ -97,6 +97,18 @@ This file is the **spec**. Live progress (current phase, branch, step checkboxes
 | D50 | Evening prompt script lives in the workspace and serves the WhatsApp rollback | New `coach_evening.sh` in stoiclife; cron `7e8a7edd` repointed (job backed up). Workspace `evening-prompt.sh` untouched. |
 | D51 | A failed buttoned send could lose a prompt | If the helper send fails, the prompt script prints the prompt as plain text (today's behaviour). D5's `NO_REPLY` is verified live once with a labelled one-shot job. |
 | D52 | Gateway restart | One restart for the plugin changes (two hooks in, `message_received` out), per D20. |
+
+### Phase 5 decisions (Code's review P5-D1..D8 + Mihajlo's answers, 2026-10-08)
+
+| # | Issue | Decision |
+|---|---|---|
+| D53 | Two audible messages on a flagged day | The daily update is **always silent**. On a flagged day the 🧭 push is the only audible message. |
+| D54 | Data not synced at 11:00 (the engine accepts rows up to 2 days old, so it could push off stale data) | When today's row has no sleep data or score at 11:00, **postpone the engine run** to a 12:00 re-check (the update says so in one line). If the data is still missing at 12:00, the 11:00/12:00 run **does not evaluate that day at all**: no push off stale biometrics. The day is logged `not_synced`; the existing Fitbit sync alert covers it. |
+| D55 | Spec step 3's "pending morning, expiry 14:00" conflicts with D45 | **Dropped.** The update's `[✍️ Write entry]` uses the normal write slot; the late-morning hold still lasts until the evening prompt (D45). FEAT-05 (late-entry coaching) is unchanged. |
+| D56 | Pickers can't be laid out in a script-sent message (D31) | The update shows `No check-in yet` + `[🙂 Check in]` (opens the 2×5 card), as in D47. |
+| D57 | Idempotency and measurement | Migration `003_daily_updates`: one row per day (status `complete` / `pending_sync` / `not_synced`, synced, engine action, event id, message id, escalation, entry and check-in present). A re-run never sends a second update; Phase 6 reads it. |
+| D58 | The update shouldn't depend on the coach running a script | The 11:00 (and 12:00) jobs become **command crons** running `daily_update.py`. It sends the update and any 🧭 CLARIFY line itself (both deterministic). Only **SEND_FULL** starts a coach turn, via `openclaw agent --agent coach --session-key agent:coach:stoiclife-11am-<date> --deliver --reply-channel telegram --reply-account coach --reply-to <chat>`. Verified live on 2026.6.8 (2026-10-08): a `NO_REPLY` turn → `deliveryStatus: suppressed`, nothing sent; a one-line turn → `sent` once; separate session, the DM session untouched. Guards: no route line is injected into `stoiclife-*` sessions; `record_coaching --send` refuses an event already sent (the CLI's documented timeout fallback could otherwise run the turn twice); generous timeouts. The old agentTurn job `700b6841` is disabled, not deleted (rollback). |
+| D59 | Gateway restart | None needed (no plugin change). |
 
 ---
 
@@ -308,6 +320,8 @@ Telegram limits `callback_data` to 64 bytes. The plugin claims namespace `sc`, a
 ## Phase 5 — 11am update (always on)
 
 **Goal:** A daily data update after the wearable sync, linked to the morning check-in.
+
+> **Read with D53–D59** (silent update, postpone when not synced, no 14:00 expiry, Check in button, `daily_updates`, command cron + `openclaw agent` for SEND_FULL only). Step 1's write-up is `docs/CURRENT-STATE.md` §7.
 
 1. **Understand first:** document how the current 11:00 safety-net job and FEAT-05 late-morning prep logic behave, and propose the smallest change before implementing it (D17).
 2. The 11:00 run uses the **existing trigger engine** (`stoiclife_run.py`, 7-day baseline deltas and states) to classify the day, then always sends a compact update via the helper:
