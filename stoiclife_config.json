@@ -1,6 +1,11 @@
 {
   "_comment": "stoiclife Phase 2 config. Thresholds are expressed as deltas vs the rolling baseline, not absolute cutoffs. Tune here, not in code.",
   "db_path": "~/.openclaw/stoic/stoic_journal.db",
+  "coach": {
+    "_comment": "FEAT-07: the coach bot's Telegram chat (Mihajlo's DM with @stoiclife_coach_bot) and OpenClaw account. Scripts that send buttons, record check-ins or key pending state default to these.",
+    "chat_id": "8917837483",
+    "account": "coach"
+  },
   "rolling_window_days": 7,
   "min_baseline_days": 3,
   "biometrics_max_lag_days": 2,

@@ -1,0 +1,10 @@
+{
+  "name": "stoic-coach-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FEAT-07: deterministic sc: buttons and slash commands for the Stoic coach bot",
+  "openclaw": {
+    "extensions": ["./index.js"]
+  }
+}

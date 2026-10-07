@@ -1,0 +1,12 @@
+{
+  "id": "stoic-coach-ui",
+  "name": "Stoic coach UI",
+  "description": "Claims sc: Telegram callbacks and /mood /module /journal /skip on the coach bot; all logic in ~/projects/stoiclife/sc_dispatch.py",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}

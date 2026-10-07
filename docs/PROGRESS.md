@@ -173,6 +173,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-07: FEAT-07 (coach Telegram UX: buttons/keyboard/state routing) Phase 0 discovery.** `docs/CURRENT-STATE.md`: crons, inbound path, parsing locations, DB schema/counts, OpenClaw 2026.6.8 capability check. Plugin callback handler YES (`registerInteractiveHandler`, namespace `sc`, auto-ack), edit YES, silent send YES (CLI only), **ForceReply NO, reply keyboard NO**, reply-to metadata YES (but `inbound_claim` only for plugin-bound conversations), voice YES/unverified. 7 plan mismatches listed there (mood 1–10 vs 1–5, evening review, no coaching response id, …). No code/data changed.
 
+- **2026-10-07: FEAT-07 Phase 1 (foundation) built and live.** Working file `docs/FEAT07-UX-TELEGRAM-SEED.md` (plan v2 + review gaps G1–G20). Migration runner `migrate.py` + `migrations/001_ux_tables.sql` (checkin_events, coaching_responses (+text), response_feedback, ui_messages); live DB backup `stoic_journal.db.bak-mig001-20261007-222424`, pre-existing counts unchanged. `checkins.py` (logical-day local_date, upsert, G9 merge rule), `tg.py` (CLI send/edit, pending state in state.json, ui_messages), `sc_dispatch.py` (all button/command logic), `send_coaching.py` (r/t, not wired in yet), `sc_test_button.py`. Plugin `plugin/stoic-coach-ui/` = thin JS shim → sc_dispatch.py; linked install + coach `inlineButtons: dm`; one gateway restart 22:25, all channels back. Workspace scripts touched (D16): `save_entry.py` (merge check-ins after insert; reset keeps `pending`), `set_prompt_state.py` (read-modify-write). Tests `tests/test_feat07_phase1.py` 68/68; existing suites green. Rollback in OPERATIONS.md.
+
 ## Open questions for Mihajlo
 
 - (none open)

@@ -43,6 +43,14 @@ Fitbit 07:00 / 10:00 failure alerts go to **both** WhatsApp and the coach bot (`
 
 **Known limits:** Telegram *tap* reactions don't reach the coach (rate by typing 👍/👎). Command-cron prompts aren't mirrored into the coach's session (`state.json` + prefixes carry attribution; the coach asks before saving an unprefixed reply).
 
+### FEAT-07 coach UI plugin (`stoic-coach-ui`, since 2026-10-07)
+
+`plugin/stoic-coach-ui/` (linked install, `plugins.load.paths`) claims Telegram callbacks starting `sc:` and the `/mood /module /journal /skip` commands on the coach account, and pipes each one to `sc_dispatch.py`. All logic is in Python, so editing `sc_dispatch.py`, `checkins.py` or `tg.py` needs **no** restart; editing `index.js` or the manifest does. Logs: `~/.openclaw/stoic/stoic.log` (`tg:` / `sc_dispatch:` lines) and `journalctl --user -u openclaw-gateway | grep stoic-coach-ui`. Schema: `python3 migrate.py --status` (`migrations/NNN_*.sql`; the runner backs up the DB first). Working file: `docs/FEAT07-UX-TELEGRAM-SEED.md`.
+
+**Rollback (one command; config snapshot taken before the install):**
+`cp ~/.openclaw/openclaw.json.pre-feat07-20261007-222449 ~/.openclaw/openclaw.json && systemctl --user restart openclaw-gateway && sleep 20 && systemctl --user is-active openclaw-gateway`
+Then check the journal shows WhatsApp + both Telegram providers starting. This removes the plugin from `plugins.allow`/`load.paths` and the coach's `inlineButtons: dm`. The new tables are additive and harmless to leave in place; the DB backup is `stoic_journal.db.bak-mig001-20261007-222424`.
+
 ### Rollback to WhatsApp
 
 1. `echo whatsapp > ~/.openclaw/stoic/coaching-channel`
