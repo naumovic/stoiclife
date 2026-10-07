@@ -129,7 +129,7 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [ ] **Bug P4-B1:** the coach answered `Thanks` (CONVERSATION route) with `NO_REPLY`. The route line now says "always reply, even to a bare thanks; never NO_REPLY here" (Python only, no restart). Verify on the next casual message.
 - [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed
 
-## Phase 5: 11am update ✅ built + live (awaiting the first real 11:00 run, then merge)
+## Phase 5: 11am update ✅ (merged + pushed 2026-10-08)
 
 Step 1 (understand first) is written up in `docs/CURRENT-STATE.md` §7.
 
@@ -159,8 +159,8 @@ Missing pieces get buttons: `No morning entry yet` → `[✍️ Write entry]`; `
 - [x] **P5.2** Crons: `80be6ec8` Coach Daily Update (11:00) + `522605b8` re-check (12:00), command jobs, exact, 420 s; `700b6841` disabled (backup `~/.openclaw/cron/bak-feat07-p5-safetynet-20261008-002646.json`); OPERATIONS.md cron table updated
 - [x] **P5.3a** Agent CLI path verified live (2026-10-08 00:22): a `NO_REPLY` turn → suppressed; a one-line turn → sent once; own session. Real cron path verified with a one-shot (00:28): not-synced branch → one silent message (124) with ✍️/🙂, run `ok`/`not-delivered`. Test row removed.
 - [x] **P5.4 (D60)** D54 extension: `trigger_matrix.evaluate` checks `daily_updates` for `not_synced`; if so, `classify_journal_only` (mood + keywords, no deltas/modulators, neutral, never fires) and the health line says "not synced". Mood/keyword block refactored into `mental_signal()` (engine dry run on real data identical before/after). Tests phase5 33/33 (entry after not_synced, late morning, normal 07:30 unaffected, control, no cross-day leak).
-- [ ] **P5.3b** First real 11:00 run (2026-10-08): silent update with last night's data; engine ran; check `daily_updates`, `stoic.log`, `cron_run_logs`. A flagged day (CLARIFY/SEND_FULL) is verified when it happens.
-- [ ] Phase summary; merge on approval
+- [ ] **P5.3b (watch, in self-test)** First real 11:00 run (2026-10-08): silent update with last night's data; engine ran; check `daily_updates`, `stoic.log`, `cron_run_logs`. A flagged day (CLARIFY/SEND_FULL) is verified when it happens.
+- [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed (Mihajlo: merge now, treat issues found in self-test as bugs)
 
 ## Phase 6: Self-test metrics
 - [ ] `ux_metrics.py` against the live DB
