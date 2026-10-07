@@ -7,8 +7,8 @@ The blueprint for FEAT-07. Mihajlo's plan v2 is reproduced verbatim further down
 | Phase | Branch | Status |
 |---|---|---|
 | 0 Discovery | `feat07-phase0-current-state` | ✅ done, merged to main (44c5a11) |
-| 1 Foundation | `feat07-phase1-foundation` | ✅ acceptance passed 2026-10-07; awaiting your review |
-| 2 Feedback buttons | — | not started |
+| 1 Foundation | `feat07-phase1-foundation` | ✅ done, merged to main |
+| 2 Feedback buttons | `feat07-phase2-feedback` | 📝 planned; discrepancies P2-D1..D11 in the PROGRESS file |
 | 3 Mood/module buttons + commands | — | not started |
 | 4 Morning/evening without prefixes | — | not started |
 | 5 11am update | — | not started |
@@ -48,10 +48,10 @@ Reviewed against the live code (`save_entry.py`, `set_prompt_state.py`, `record_
 - **G20. Plugin slash commands register on every Telegram account,** so `/mood /module /journal /skip` also show in the trip bot's `/` menu. There they return `continueAgent` (the trip bot's agent sees the text as usual). Cosmetic; revisit if it confuses anyone.
 - **Install facts.** `openclaw plugins install --link` added the plugin to `plugins.allow`, `plugins.entries` and `plugins.load.paths`, but did **not** restart the gateway. The follow-up `config set` did (an automatic reload-restart). The 2026-10-07 window took one restart in total.
 
-### Open questions (defaults applied; tell me to change them)
+### Decided questions (2026-10-07)
 
-- **Q1 (Phase 3).** A mood tap *after* today's entry is already saved: should it also update that entry (as manual)? Default until decided: no, it only lands in `checkin_events` and applies to the next entry per G9.
-- **Q2.** Is it OK for the slash commands to show in the `/` menu from Phase 1 (G8)? Default: yes.
+- **Q1 (Phase 3): decided no.** A mood tap *after* today's entry is already saved does **not** update that entry. It only lands in `checkin_events` and applies to the next entry per G9.
+- **Q2: decided yes.** The slash commands show in the `/` menu from Phase 1 (G8), including the trip bot's menu (G20). Accepted.
 
 ---
 
