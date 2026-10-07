@@ -4,9 +4,9 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 
 ## ▶ Resume here
 
-- **Phase:** 5 (11am update), **not started**. Its spec step 1 is "understand first": document the current 11:00 safety-net + FEAT-05 behaviour, propose the smallest change, check against the code, and get Mihajlo's OK before coding.
-- **Branch:** `main` is checked out (Phases 0–4 merged and pushed to `origin`). Create `feat07-phase5-11am` from `main` when starting.
-- **Open:** bug P4-B1, verify the coach replies to a bare "thanks" (route-line fix in place). Watch the first real Phase 4 day (2026-10-08): 07:30 prompt with buttons, plain-text morning entry, after-11:00 hold, 20:30 evening via `coach_evening.sh`.
+- **Phase:** 5 (11am update), **planned, awaiting Mihajlo's OK** on P5-D1..D8, plus decisions on P5-D4 (one ping) and P5-D6 (defer evaluation when not synced). No code yet. Record the agreed decisions in the spec as D53+.
+- **Branch:** `feat07-phase5-11am` (from `main` @ 7c3bf32). Don't push unless asked.
+- **Open:** bug P4-B1 (coach replies to a bare "thanks"?); first real Phase 4 day 2026-10-08.
 - **Note:** the coach workspace *is* this repo dir, so the checked-out branch's `coach-workspace/AGENTS.md` is what's live. Plugin `index.js` changes need a gateway restart; Python ones don't.
 
 ## Live state pointers
@@ -129,9 +129,32 @@ The step-by-step tracker for FEAT-07. **If a session ends, start here.** The spe
 - [ ] **Bug P4-B1:** the coach answered `Thanks` (CONVERSATION route) with `NO_REPLY`. The route line now says "always reply, even to a bare thanks; never NO_REPLY here" (Python only, no restart). Verify on the next casual message.
 - [x] Phase summary (PROGRESS.md 2026-10-08); merged to main and pushed
 
-## Phase 5: 11am update
-- [ ] Current 11:00 + FEAT-05 behaviour documented; smallest change proposed (D17)
-- [ ] Built (12:00 retry cron in travel-mode tz list, G13), tested, live-accepted, merged
+## Phase 5: 11am update 📝 planned (awaiting Mihajlo's OK)
+
+Step 1 (understand first) is written up in `docs/CURRENT-STATE.md` §7.
+
+### Discrepancies vs spec v4.1 (proposed fixes)
+- **P5-D1 The update must be deterministic, but the 11:00 job is an agentTurn.** Smallest change (D17): keep the proven cron. Its step 1 runs a new **`daily_update.py`** instead of `stoiclife_run.py`. The script runs `stoiclife_run.py` itself, sends the compact update (a script send, no LLM), then prints the engine's directive **unchanged**, so the coach's SILENT / CLARIFY / SEND_FULL handling stays exactly as today. Not chosen: a command cron plus `openclaw agent --deliver` for pushes. That's fully LLM-free but a new, untested path.
+- **P5-D2 FEAT-05 is not a nudge to merge with.** It's coaching for a late entry, and it stays as is. The "missing morning entry" one-tap fix is the update's `No morning entry yet` + `[✍️ Write entry]` (the existing write slot). Spec step 3's "pending morning, expiry 14:00" conflicts with D45 (the late hold lasts until the evening prompt), so **drop the 14:00 expiry**.
+- **P5-D3 Pickers in the update → `[🙂 Check in]`** (opens the 2×5 card), as in D47. Script sends can't lay out the picker (D31).
+- **P5-D4 One ping on a flagged day, not two.** The spec makes the update audible on firing days, and the push is a second audible message seconds later. Proposal: the update is **always silent**, and on a firing day the 🧭 push is the one notification. **Decision needed.**
+- **P5-D5 "Synced" needs a precise test.** It means today's row has sleep data and a sleep score (reuse `status.health_check`). A lagged row is never shown as "last night". Not synced at 11:00 → one silent line ("Last night's data hasn't synced yet, I'll check again at 12:00") + a new **12:00 retry cron** (same agentTurn, `daily_update.py --retry`). It does nothing if the 11:00 update was complete, and sends nothing more if the data is still missing (the 10:00 sync's failure alert already covers that). `travel-mode.sh` retimes every cron job, so the new one needs no workspace change (G13 resolved).
+- **P5-D6 The engine may push on stale data while the update says "not synced".** With `biometrics_max_lag_days` = 2, the 11:00 evaluation classifies on yesterday's row if today's is missing. Proposal: when not synced at 11:00, `daily_update.py` **defers the evaluation to the 12:00 retry** (prints `SILENT`). If you prefer strict D17 ("engine untouched"), keep evaluating at 11:00 and only the update text changes. **Decision needed.**
+- **P5-D7 Idempotency + measurement.** Migration `003_daily_updates`: one row per day (status complete / pending_sync, silent, message id, trigger event id, synced, entry and check-in present). A re-run never sends a second update. It feeds Phase 6.
+- **P5-D8 No gateway restart** (no plugin change). Cron edits: the 11:00 message (backed up first) + the new 12:00 job.
+
+### Proposed update message (silent)
+```
+📊 Last night: 9h10 sleep · HRV 50 ms (+12% vs 7-day) · RHR 52 bpm
+This morning: Mood 7 · Creativity · entry ✓
+```
+Missing pieces get buttons: `No morning entry yet` → `[✍️ Write entry]`; `No check-in yet` → `[🙂 Check in]`.
+
+### Steps (after OK)
+- [ ] **P5.1** Migration 003; `daily_update.py` (data line from today's row + 7-day deltas via `trigger_matrix` helpers; morning line from `journal_entries` / `checkin_events`; buttons; wraps `stoiclife_run.py`; `--retry`; idempotent) + tests
+- [ ] **P5.2** 11:00 cron message → `daily_update.py` (backup); new 12:00 retry cron
+- [ ] **P5.3** Live check: a dry run against today's real data, then the real 11:00 run (or a labelled one-shot)
+- [ ] Phase summary; merge on approval
 
 ## Phase 6: Self-test metrics
 - [ ] `ux_metrics.py` against the live DB

@@ -151,3 +151,22 @@ Other useful findings:
 5. **ForceReply and the persistent reply keyboard are unavailable.** Candidate fallback: `sc:prep:write` / `sc:note:*` set a pending state (`state.json` or a plugin state store) and reply "Type your entry…". The next free text is then routed by state, either by the agent (AGENTS.md reads state, as the forgotten-prefix rule does today) or deterministically via a conversation binding. Reply keyboard → bot command menu (`registerCommand`) + inline buttons on the prompts.
 6. **Free-text routing.** True deterministic routing means binding the coach DM to the plugin (every message hits the plugin first, which must pass entries and conversation through to the agent). The alternative is to keep the LLM routing and let state + reply-to replace the prefix requirement.
 7. **The coach has no plugin today.** The plugin must be installed, added to `plugins.allow`, and the gateway restarted. A bad config takes all channels down (memory: openclaw-doctor-not-authoritative), so restart and check `is-active`.
+
+## 7. The 11:00 safety-net and FEAT-05, as of FEAT-07 Phase 4 (2026-10-08)
+
+Written for FEAT-07 Phase 5, step 1 ("understand first").
+
+**Data timing.** The Fitbit sync runs at 07:00 (primary) and 10:00 (catch-up). Today's `biometrics` row holds **last night's** sleep, HRV and resting HR, plus today's steps so far. At 07:00 the row often has steps only; the 10:00 catch-up fills in the sleep stages, and `sleep_score.py --recent 4` then computes the score. By 11:00, "synced" means today's row exists with `sleep_duration_min` and `sleep_score` set. FEAT-02's `status.health_check()` already tests this (`biometrics_fresh`, `sleep_score_present`).
+
+**The 11:00 job** (`700b6841`, agentTurn, coach agent, announced to the coach chat): the coach runs `stoiclife_run.py --session safety-net --channel telegram` and acts on the first line:
+- **Start-of-run sweep:** releases a message held overnight in quiet hours (once, deliver-once) or expires stale holds. This happens before today's evaluation.
+- **Evaluation:** `trigger_matrix.evaluate()` classifies the day against the 7-day baseline (`rolling_window_days`). It uses the most recent biometrics row **within `biometrics_max_lag_days` = 2**, so if today's row is missing it can classify on **yesterday's** row. It needs a journal entry for the day (otherwise `insufficient_data`) and ≥ 3 baseline days.
+- **Gates:** silent states (neutral, sweet_spot, insufficient_data) → `SILENT`; cooldown (2 days per state) → `SILENT`; "already sent today" → `SILENT`; confidence < 40 → `SILENT`; 40–69 → `CLARIFY` (🧭 one-liner, no buttons); ≥ 70 → `SEND_FULL` (the coach composes, `record_coaching.py --send` validates, stores and sends with 👍/👎); quiet hours 21:00–07:00 → `HOLD_QUIET`.
+- **The coach's reply:** `HEARTBEAT_OK` on SILENT/HOLD_QUIET (nothing is delivered), the 🧭 line on CLARIFY, `NO_REPLY` after a `--send`.
+- Every evaluation writes a `trigger_events` row (`session = 'safety-net'`).
+
+So on a normal day **the 11:00 job sends nothing**. On a day without a morning entry it logs `insufficient_data` and also sends nothing.
+
+**FEAT-05 (late morning prep)** is not a nudge. It's a rule in the engine: a *morning* entry written **after 11:00 today** is treated as the safety-net run (`status.is_late_morning`), so `evaluate()` may fire coaching for it in-turn and the 🟢/⚠️ status line may be appended. It exists because the 11:00 sweep found no entry, and before FEAT-05 nothing was ever coached that day (the 2026-08-11 miss).
+
+**Since Phase 4**, a message sent after 11:00 while the morning prep is unanswered (and before the evening prompt) is held with `[📝 Save as morning prep] [💬 Just chatting]` (spec D45). Saving it goes through the normal pipeline, so FEAT-05's late-morning coaching still applies.
