@@ -58,7 +58,7 @@ Scheduled (cron) turns have no route line: follow section 4.
 
 The answer is already recorded; only the full read is left. Exactly these steps, no others:
 1. `python3 /home/mihajlo/projects/stoiclife/build_payload.py --event-id <id> --channel telegram` prints the instructions, the data and the strict format.
-2. Compose the message in that format, then `printf '%s' "<message>" | python3 /home/mihajlo/projects/stoiclife/record_coaching.py --event-id <id> --channel telegram --send`. It validates, records and sends it (👍/👎 buttons) and prints `NO_REPLY`. If it rejects (exit 2), fix the format and retry once. Exit 3: say in one line that the read wasn't delivered.
+2. Compose a new message in that format from this payload (never reuse an earlier message or file, even for the same data), then pipe it in: `printf '%s' "<message>" | python3 /home/mihajlo/projects/stoiclife/record_coaching.py --event-id <id> --channel telegram --send` (no `--file`). It validates, records and sends it (👍/👎 buttons) and prints `NO_REPLY`. If it rejects (exit 2), fix the format and retry once. Exit 3: say in one line that the read wasn't delivered.
 3. Reply exactly `NO_REPLY`.
 
 **Never** run `stoiclife_run.py` here (it logs a duplicate event), and don't read the scripts' source or query the DB to work it out.
