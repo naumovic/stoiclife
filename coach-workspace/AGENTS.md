@@ -28,7 +28,7 @@ His message:
 
 Always take his message from the route line, never from the chat history shown above it (OpenClaw glues his message onto the history; that once lost a message). If a turn starts with `callback_data: sc:…`, that's a button tap passed on to you: the route line holds the real message.
 
-Notes, "Tell me more" answers, button taps and `/mood` `/module` `/journal` `/skip` are handled by the plugin without you.
+"Tell me more" answers, button taps and `/mood` `/module` `/journal` `/skip` are handled by the plugin without you.
 Scheduled (cron) turns have no route line: follow section 4.
 
 2. Save: `python3 /home/mihajlo/.openclaw/workspace/scripts/save_entry.py --session <morning|evening> --response "<text>"` (session and text from the route line)

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """FEAT-07: save the message that answers a pending "type something" prompt.
 
-Two pending kinds (set by sc_dispatch, 2h expiry, one slot per chat):
+One pending kind (set by sc_dispatch, 2h expiry, one slot per chat):
   fb_more:<r|t><id>          👎 → "Tell me more"   → response_feedback.note  (P2.4)
-  note:<mood|module>:<day>   "📝 Add a note"     → checkin_events.note     (P3-D7)
+Check-in notes (`note:<mood|module>:<day>`, P3-D7) were removed in MIN-130: nothing read
+them. A leftover slot of that kind is cleared as stale.
 
 The coach runs this FIRST on every message without a journal prefix
 (AGENTS.md §1 step 0) until Phase 4's route_entry.py takes over:
@@ -20,11 +21,10 @@ import argparse
 import re
 import sys
 
-import checkins
 import tg
 
 PENDING_RE = re.compile(r"^fb_more:([rt])(\d+)$")
-NOTE_RE = re.compile(r"^note:(mood|module):(\d{8})$")
+OLD_NOTE_RE = re.compile(r"^note:(mood|module):\d{8}$")  # MIN-130: removed kind
 
 
 def save_note(text: str, chat_id: str | None = None, conn=None, state_path=None,
@@ -46,18 +46,10 @@ def save_note(text: str, chat_id: str | None = None, conn=None, state_path=None,
 
 
 def _save(text: str, kind_s: str, chat_id, conn, state_path) -> bool:
-    n = NOTE_RE.match(kind_s)
-    if n:
-        ctype, tag = n.groups()
-        day = f"{tag[:4]}-{tag[4:6]}-{tag[6:]}"
-        conn = conn or tg.db_connect()
-        chat = str(chat_id or checkins.coach_config()["chat_id"])
-        with conn:
-            ok = checkins.set_note(conn, chat, day, ctype, text)
+    if OLD_NOTE_RE.match(kind_s):
         tg.clear_pending(chat_id, path=state_path)
-        tg.log("INFO" if ok else "WARNING",
-               f"save_pending_note: {ctype} note on {day} {'saved' if ok else 'had no check-in'}")
-        return ok
+        tg.log("INFO", f"save_pending_note: stale {kind_s} slot cleared (check-in notes removed, MIN-130)")
+        return False
     m = PENDING_RE.match(kind_s)
     if not m:
         return False

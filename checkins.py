@@ -131,20 +131,16 @@ def record_inline(conn: sqlite3.Connection, entry_id: int, chat_id: str) -> dict
 
 
 def today_state(conn: sqlite3.Connection, chat_id: str, day: str) -> dict:
-    """{'mood': {'value', 'note', 'source'}, 'module': {...}} for the day (missing types absent)."""
-    return {t: {"value": v, "note": n, "source": src}
-            for t, v, n, src in conn.execute(
-                "SELECT type, value, note, source FROM checkin_events "
+    """{'mood': {'value', 'source'}, 'module': {...}} for the day (missing types absent).
+
+    `checkin_events.note` is unused since MIN-130 (check-in notes removed; nothing read them).
+    """
+    return {t: {"value": v, "source": src}
+            for t, v, src in conn.execute(
+                "SELECT type, value, source FROM checkin_events "
                 "WHERE chat_id = ? AND local_date = ?", (str(chat_id), day))}
 
 
-def set_note(conn: sqlite3.Connection, chat_id: str, day: str, ctype: str, text: str,
-             now: datetime | None = None) -> bool:
-    """Attach a note to the day's mood/module check-in. False if there is no such check-in."""
-    cur = conn.execute(
-        "UPDATE checkin_events SET note = ?, updated_at = updated_at WHERE chat_id = ? "
-        "AND local_date = ? AND type = ?", (text.strip(), str(chat_id), day, ctype))
-    return cur.rowcount > 0
 
 
 def merge_into_entry(conn: sqlite3.Connection, entry_id: int, chat_id: str) -> dict:

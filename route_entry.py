@@ -9,7 +9,7 @@ coach agent is involved. Priority:
      a `/command` → passthrough (OpenClaw / plugin commands, never routed)
   1. a legacy prefix (`morning prep:` …)              → entry, that session, prefix stripped
   2. a reply to a stored prompt message               → entry, that prompt's session
-  3. a pending note / "Tell me more"                  → note (saved here, LLM-free, D42)
+  3. a pending "Tell me more" (👎 feedback)            → note (saved here, LLM-free, D42)
   4. a pending ✍️ Write / `/journal`                  → entry, its session (D49)
   4b. an open CLARIFY 🧭 question and a bare yes / no  → clarify / clarify_no (MIN-132)
   5. an open prompt, inside its window:
@@ -35,7 +35,7 @@ import tg
 PREFIXES = {"morning prep:": "morning", "evening review:": "evening"}
 HOLD_CB_RE = re.compile(r"^callback_data:\s*sc:hold:([ec]):(\d+)\s*$")
 CLAR_CB_RE = re.compile(r"^callback_data:\s*sc:clar:(\d+):y\s*$")
-NOTE_KINDS = re.compile(r"^(fb_more:[rt]\d+|note:(mood|module):\d{8})$")
+NOTE_KINDS = re.compile(r"^fb_more:[rt]\d+$")  # MIN-130: check-in notes removed
 WRITE_RE = re.compile(r"^write:(morning|evening)$")
 
 
@@ -94,7 +94,7 @@ def decide(conn, *, chat_id: str, text: str, reply_to_id=None, now: datetime | N
         return {"route": "entry", "session": p["session"], "source": "reply", "text": text,
                 "prompt_id": p["id"]}
 
-    # 3. pending note / Tell me more (one pending slot, D36)
+    # 3. pending Tell me more (one pending slot, D36)
     pending = tg.get_pending(chat_id, now=now, path=state_path)
     pkind = (pending or {}).get("kind") or ""
     if NOTE_KINDS.match(pkind) and text.strip():

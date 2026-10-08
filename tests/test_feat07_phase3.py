@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FEAT-07 Phase 3 — check-in card, dated buttons + stale guard, notes, /mood /module,
+"""FEAT-07 Phase 3 — check-in card, dated buttons + stale guard, notes removed (MIN-130), /mood /module,
 legacy inline values -> checkin_events (stamped at the entry's created_at), and the
 G9 merge with all of it. Scratch DB + temp HOME; nothing live is touched.
 Run: python3 tests/test_feat07_phase3.py
@@ -94,10 +94,10 @@ out = tap("mood:7:20261008")["actions"][0]
 check("mood tap re-renders the card", out["type"] == "edit" and out["text"] == "Check-in · Thu 8 Oct\nMood: 7 ✓", out)
 check("chosen mood marked, module row still there", labels(out["buttons"])[1][1] == "7 ✓"
       and labels(out["buttons"])[2] == ["Emotions", "Creativity", "Happiness"], labels(out["buttons"]))
-check("one note button once mood chosen", datas(out["buttons"])[3] == ["sc:note:mood:20261008"])
+check("no note row once mood chosen (MIN-130)", len(out["buttons"]) == 3, labels(out["buttons"]))
 out = tap("mod:creativity:20261008")["actions"][0]
 check("module tap: combined status line", out["text"].endswith("Mood: 7 ✓ · Module: Creativity ✓"), out["text"])
-check("two note buttons when both chosen", datas(out["buttons"])[3] == ["sc:note:mood:20261008", "sc:note:module:20261008"])
+check("no note row with mood + module (MIN-130)", len(out["buttons"]) == 3, labels(out["buttons"]))
 out = tap("mood:3:20261008")["actions"][0]
 check("re-tap: latest wins, one row", "Mood: 3 ✓" in out["text"] and conn.execute(
       "SELECT COUNT(*), MAX(value) FROM checkin_events WHERE type='mood'").fetchone() == (1, "3"))
@@ -111,45 +111,39 @@ check("plan's suffix-less form still accepted", "Mood: 4 ✓" in tap("mood:4")["
 out = tap("mood:5:20261008", now=at(7, 0, day=9))  # 07:00 on the 9th is still logical day 8
 check("before 07:30 the previous day's card is still live", "Mood: 5 ✓" in out["actions"][0]["text"], out)
 
-# --- notes -------------------------------------------------------------------------------
+# --- notes removed (MIN-130) ----------------------------------------------------------------
 out = tap("note:mood:20261008")
-check("note tap asks for the note", out == {"actions": [{"type": "reply", "text": "Add your mood note below."}]}, out)
-pend = tg.get_pending(CHAT)
-check("pending note:mood:<day>, ~2h", pend and pend["kind"] == "note:mood:20261008"
-      and datetime.fromisoformat(pend["expires_at"]) == NOW + timedelta(hours=2), pend)
-check("typed note saved (SAVED)", save_pending_note.save_note("slept badly, still ok", CHAT, conn))
-check("note stored on the mood row", conn.execute(
-      "SELECT note FROM checkin_events WHERE type='mood'").fetchone()[0] == "slept badly, still ok")
-check("pending cleared", tg.get_pending(CHAT) is None)
+check("old card's 📝 tap -> one line, no pending slot", out == {"actions": [{"type": "reply",
+      "text": "Notes are gone: add it to your journal entry."}]} and tg.get_pending(CHAT) is None, out)
 text, _ = sc_dispatch.card(conn, CHAT, "2026-10-08")
-check("card shows the note", "📝 Mood note: slept badly, still ok" in text, text)
-c2 = fresh_db("nonote.db")
-out = sc_dispatch.handle_callback({"payload": "note:module:20261008", "chatId": CHAT, "messageId": 1}, c2, NOW)
-check("note before choosing -> asks to pick first", "Pick a module first" in out["actions"][0]["text"], out)
+check("card text has no note line", "📝" not in text, text)
+tg.set_pending("note:mood:20261008", chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
+check("leftover note slot -> not saved, cleared as stale",
+      not save_pending_note.save_note("slept badly", CHAT, conn) and tg.get_pending(CHAT) is None)
 tap("fb:r1:up")  # unknown target; just make sure the fb path still coexists
-tg.set_pending("note:mood:20261008", chat_id=CHAT)
-tap("note:module:20261008")
-check("newer intent replaces the pending slot", tg.get_pending(CHAT)["kind"] == "note:module:20261008")
-tg.clear_pending(CHAT)
 
-# --- P3-B1: message_received hook saves deterministically -----------------------------------
-tg.set_pending("note:module:20261008", chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
+# --- P3-B1: message_received hook saves deterministically ("Tell me more") -----------------------
+with conn:
+    conn.execute("INSERT INTO response_feedback (target_kind, target_id, rating, reason, created_at) "
+                 "VALUES ('t', 900, 'down', 'more', ?)", (NOW.isoformat(),))
+MORE = "fb_more:t900"
+tg.set_pending(MORE, chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
 c_msg = conn
 _orig_connect = tg.db_connect
 tg.db_connect = lambda path=None: c_msg  # the hook path opens its own connection
 out = sc_dispatch.handle_message({"text": "Rockin", "chatId": f"telegram:{CHAT}"})
-check("hook saves the pending note before the LLM", out == {"saved": True}, out)
-check("module note stored", conn.execute("SELECT note FROM checkin_events WHERE type='module'").fetchone()[0] == "Rockin")
+check("hook saves the pending 'Tell me more' before the LLM", out == {"saved": True}, out)
+check("feedback note stored", conn.execute("SELECT note FROM response_feedback WHERE target_id=900").fetchone()[0] == "Rockin")
 check("pending cleared, consumed marker left", tg.get_pending(CHAT) is None
       and (tg.read_state().get("consumed") or {}).get(CHAT, {}).get("text") == "Rockin")
 check("coach step 0 on the same message -> SAVED (from the marker)", save_pending_note.save_note("Rockin", CHAT, conn))
 check("marker used up", not (tg.read_state().get("consumed") or {}).get(CHAT))
 check("a later normal message -> NONE", not save_pending_note.save_note("Rockin", CHAT, conn))
-tg.mark_consumed("old note", "note:mood:20261008", chat_id=CHAT)
+tg.mark_consumed("old note", MORE, chat_id=CHAT)
 check("different text -> marker not used", not save_pending_note.save_note("something else", CHAT, conn))
 check("stale marker (>10 min) -> not SAVED", tg.take_consumed("old note", chat_id=CHAT,
       now=datetime.now(TZ) + timedelta(minutes=11)) is None)
-tg.set_pending("note:mood:20261008", chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
+tg.set_pending(MORE, chat_id=CHAT, expires_at=datetime.now(TZ) + timedelta(hours=1))
 for t in ("/mood", "morning prep: today is fine", "Evening review: ok", "  "):
     check(f"hook ignores {t!r}", sc_dispatch.handle_message({"text": t, "chatId": CHAT}) == {"saved": False}
           and tg.get_pending(CHAT) is not None)

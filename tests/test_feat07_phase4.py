@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """FEAT-07 Phase 4 — routing on arrival (D41–D52): prompts/windows, route_entry rules,
-hold and confirm, LLM-free notes, route injection, write/skip/card, /journal /skip,
+hold and confirm, LLM-free 'Tell me more' notes, route injection, write/skip/card, /journal /skip,
 send_prompt. Scratch DB, temp state, fake sender: nothing live is touched.
 Run: python3 tests/test_feat07_phase4.py
 """
@@ -115,10 +115,12 @@ check("prefix for the other session -> entry, no prompt link", d["session"] == "
 d = route("Answering this one", at(15), reply="300")
 check("reply to the prompt (past window) -> entry", d["route"] == "entry" and d["source"] == "reply", d)
 check("/command -> passthrough", route("/mood", at(8))["route"] == "passthrough")
-tg.set_pending("note:mood:20261008", chat_id=CHAT)
+tg.set_pending("fb_more:t5", chat_id=CHAT)
 d = route("tired but fine", at(8))
-check("pending note beats the open window", d["route"] == "note", d)
-check("prefix beats a pending note", route("morning prep: x", at(8))["route"] == "entry")
+check("pending 'Tell me more' beats the open window", d["route"] == "note", d)
+check("prefix beats a pending 'Tell me more'", route("morning prep: x", at(8))["route"] == "entry")
+tg.set_pending("note:mood:20261008", chat_id=CHAT)
+check("a leftover check-in note slot no longer routes (MIN-130)", route("tired but fine", at(8))["route"] != "note")
 tg.set_pending("write:evening", chat_id=CHAT, expires_at=at(10))
 d = route("Written via /journal?", at(9))
 check("pending write -> entry directly, even with '?'", d["route"] == "entry" and d["source"] == "write"
@@ -150,10 +152,13 @@ reset_state()
 with conn:
     pm = prompts.record(conn, chat_id=CHAT, session="morning", message_id="400", now=at(7, 30))
     checkins.upsert(conn, chat_id=CHAT, ctype="mood", value=6, source="button", now=at(7, 40))
-tg.set_pending("note:mood:20261008", chat_id=CHAT)
+with conn:
+    conn.execute("INSERT INTO response_feedback (target_kind, target_id, rating, reason, created_at) "
+                 "VALUES ('t', 5, 'down', 'more', ?)", (at(7, 44).isoformat(),))
+tg.set_pending("fb_more:t5", chat_id=CHAT)
 out = sc_dispatch.handle_dispatch({"text": "slept 4h", "chatId": CHAT, "sessionKey": "k1"}, conn, at(7, 45))
-check("note -> handled with 'Thanks, noted.' (no agent, D42)", out == {"handled": True, "text": "Thanks, noted."}, out)
-check("note saved", conn.execute("SELECT note FROM checkin_events WHERE type='mood'").fetchone()[0] == "slept 4h")
+check("'Tell me more' -> handled with 'Thanks, noted.' (no agent, D42)", out == {"handled": True, "text": "Thanks, noted."}, out)
+check("'Tell me more' saved", conn.execute("SELECT note FROM response_feedback WHERE target_id=5").fetchone()[0] == "slept 4h")
 
 n0 = len(sent())
 out = sc_dispatch.handle_dispatch({"text": "Is patience a virtue?", "chatId": f"telegram:{CHAT}", "sessionKey": "k2"},

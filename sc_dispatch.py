@@ -49,7 +49,7 @@ PATTERNS = {
     "skip": re.compile(r"^skip:(morning|evening)(?::(\d+))?$"),
     "card": re.compile(r"^card:(\d{8})$"),
     "hold": re.compile(r"^hold:([ec]):(\d+)$"),
-    "note": re.compile(r"^note:(mood|module)(?::(\d{8}))?$"),
+    "note": re.compile(r"^note:(mood|module)(?::(\d{8}))?$"),   # MIN-130: old cards' 📝 only
     "noop": re.compile(r"^noop$"),
     "clar": re.compile(r"^clar:(\d+):(y|n)$"),                     # MIN-132: clarify_prompts id
     # MIN-129: the prompt's in-place check-in steps (prompt_ui.py)
@@ -57,7 +57,6 @@ PATTERNS = {
 }
 NOT_YET: dict = {}  # action -> phase that adds it (all live since Phase 4)
 WRITE_HOURS = 2
-NOTE_HOURS = 2
 LIVE_COMMANDS = ("mood", "module", "journal", "skip")
 
 REPO_DIR = Path(__file__).resolve().parent
@@ -175,10 +174,6 @@ def card(conn, chat_id: str, day: str) -> tuple[str, list]:
     if module:
         parts.append(f"Module: {module.capitalize()} ✓")
     lines = [title, " · ".join(parts) if parts else "Tap a mood (1–10) and, if you like, a Stoic module."]
-    for ctype, label in (("mood", "Mood note"), ("module", "Module note")):
-        note = (state.get(ctype) or {}).get("note")
-        if note:
-            lines.append(f"📝 {label}: {note if len(note) <= 120 else note[:117] + '…'}")
 
     def mark(label, chosen):
         return f"{label} ✓" if chosen else label
@@ -186,12 +181,6 @@ def card(conn, chat_id: str, day: str) -> tuple[str, list]:
     rows = [[btn(mark(str(n), mood == str(n)), f"sc:mood:{n}:{tag}") for n in range(1, 6)],
             [btn(mark(str(n), mood == str(n)), f"sc:mood:{n}:{tag}") for n in range(6, 11)],
             [btn(mark(k.capitalize(), module == k), f"sc:mod:{k}:{tag}") for k in MODULE_KEYS]]
-    notes = [t for t in ("mood", "module") if (state.get(t) or {}).get("value")]
-    if len(notes) == 1:
-        rows.append([btn("📝 Add a note", f"sc:note:{notes[0]}:{tag}")])
-    elif notes:
-        rows.append([btn("📝 Mood note", f"sc:note:mood:{tag}"),
-                     btn("📝 Module note", f"sc:note:module:{tag}")])
     return "\n".join(lines), rows
 
 
@@ -226,19 +215,6 @@ def handle_checkin(req: dict, ctype: str, value: str, tag: str | None, conn, now
     return {"actions": [{"type": "edit", "text": text, "buttons": rows}]}
 
 
-def handle_note(req: dict, ctype: str, tag: str | None, conn, now: datetime) -> dict:
-    chat_id = chat_of(req)
-    today = checkins.local_date(now)
-    day = card_day(req, conn, chat_id, tag, today)
-    if day is None:
-        return expired(tag_day(tag) if tag else today)
-    if not checkins.today_state(conn, chat_id, day).get(ctype):
-        return {"actions": [{"type": "reply", "text": f"Pick a {ctype} first, then add the note."}]}
-    tg.set_pending(f"note:{ctype}:{day_tag(day)}", chat_id=chat_id,
-                   message_id=str(req.get("messageId") or ""),
-                   expires_at=now + timedelta(hours=NOTE_HOURS))
-    tg.log("INFO", f"sc_dispatch: note requested for {ctype} on {day}")
-    return {"actions": [{"type": "reply", "text": f"Add your {ctype} note below."}]}
 
 
 def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
@@ -257,8 +233,8 @@ def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
         return handle_checkin(req, "mood", groups[0], groups[1], conn, now)
     if action == "mod":
         return handle_checkin(req, "module", groups[0], groups[1], conn, now)
-    if action == "note":
-        return handle_note(req, groups[0], groups[1], conn, now)
+    if action == "note":  # MIN-130: check-in notes removed; an old card's 📝 tap gets one line
+        return {"actions": [{"type": "reply", "text": "Notes are gone: add it to your journal entry."}]}
     if action in ("fb", "fbr"):
         return handle_feedback(req, action, groups, conn, now)
     if action == "noop":  # a status button ("✓ Noted …"); nothing to do
