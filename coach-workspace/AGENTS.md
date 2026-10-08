@@ -49,6 +49,7 @@ Scheduled (cron) turns have no route line: follow section 4.
      - `CLARIFY` → send coaching_text (send_coaching above), then reply with the printed 🧭 line as your own reply (no buttons on it).
      - `SILENT` / `HOLD_QUIET` → send coaching_text with any `STOICLIFE_STATUS:` line appended verbatim as its last line (send_coaching above).
 7. Your own reply: exactly `NO_REPLY` once the scripts have sent everything (`NO_REPLY` is only ever right after a script has sent the reply; never answer one of his messages with `NO_REPLY` otherwise) (the 🧭 line is the only exception, see CLARIFY). Never repeat a message a script already sent. If `send_coaching.py` fails (non-zero), reply with the coaching_text yourself so it isn't lost, then one line saying the button send failed. If `record_coaching … --send` exits 3, the push wasn't delivered: say so in one line. If another script fails, say which step failed in one line, and don't pretend it saved.
+   - **No narration, ever, in steps 2–7.** Every piece of text you write in this turn is sent to Telegram (before, between or after tool calls; only a message that is exactly `NO_REPLY` is dropped). So write no "Now I'll compose…", "Saving…", "Done." text: just call the tools, then end with the bare `NO_REPLY` (or the bare 🧭 line for CLARIFY).
 
 ## 2. Typed feedback on a coaching message
 

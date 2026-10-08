@@ -322,7 +322,12 @@ def handle_write(req: dict, session: str, pid: str | None, conn, now: datetime) 
         if p and p["skipped_at"]:
             with conn:
                 prompts.unskip(conn, p["id"])
+    # MIN-127: the ✍️ button stays live, so a second tap must not post a second "Go ahead".
+    already_open = (tg.get_pending(chat_id, now=now) or {}).get("kind") == f"write:{session}"
     open_write(chat_id, session, now)
+    if already_open:
+        tg.log("INFO", f"sc_dispatch: write {session} again (slot already open); no second prompt")
+        return {"actions": []}
     tg.log("INFO", f"sc_dispatch: write {session}")
     return {"actions": [{"type": "reply", "text": "Go ahead — type your entry below."}]}
 

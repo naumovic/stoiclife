@@ -219,6 +219,9 @@ route_entry.clear_hold(CHAT)
 out = sc_dispatch.handle_callback({"payload": f"write:morning:{pm}", "chatId": CHAT}, conn, at(13, 40))
 check("✍️ Write -> 'Go ahead' + pending write", out["actions"][0]["text"].startswith("Go ahead")
       and tg.get_pending(CHAT, now=at(13, 41))["kind"] == "write:morning", out)
+out = sc_dispatch.handle_callback({"payload": f"write:morning:{pm}", "chatId": CHAT}, conn, at(13, 42))
+check("✍️ Write tapped again -> no second 'Go ahead', slot still open (MIN-127)", out == {"actions": []}
+      and tg.get_pending(CHAT, now=at(13, 43))["kind"] == "write:morning", out)
 sc_dispatch.handle_dispatch({"text": "Late but here?", "chatId": CHAT, "sessionKey": "k9"}, conn, at(13, 45))
 check("text after Write -> entry directly (no hold), slot cleared",
       conn.execute("SELECT route, source FROM route_events ORDER BY id DESC LIMIT 1").fetchone() == ("entry", "write")
