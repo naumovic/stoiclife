@@ -259,8 +259,8 @@ check("send_prompt -> NO_REPLY + prompt row with message id", r.stdout.strip() =
 check("ui_messages prompt_evening recorded", hc.execute("SELECT kind, ref_id FROM ui_messages").fetchall() == [("prompt_evening", pr[0][0])])
 a = sent()[-1]
 vals = [b["value"] for blk in json.loads(a[a.index("--presentation") + 1])["blocks"] for b in blk["buttons"]]
-check("no mood yet -> check-in first, carrying the prompt id (MIN-129)",
-      vals == [f"sc:pc:{pr[0][0]}:go", f"sc:pc:{pr[0][0]}:skip"], vals)
+check("evening prompt -> module step first, carrying the prompt id (MIN-129/MIN-133)",
+      vals == [f"sc:pc:{pr[0][0]}:k{k}" for k in ("emotions", "creativity", "happiness", "none")], vals)
 r = subprocess.run([sys.executable, str(REPO / "send_prompt.py"), "--session", "morning"], input="☀️ Morning prep\n\nGo",
                    capture_output=True, text=True, env={**env, tg.FAKE_ENV: str(TMP)})
 check("failed send -> prints the prompt text (D51)", r.returncode == 0 and r.stdout.startswith("☀️ Morning prep"), r.stdout + r.stderr)

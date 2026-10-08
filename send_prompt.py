@@ -2,9 +2,10 @@
 """FEAT-07 Phase 4: send the morning/evening prompt with buttons (D47, D48, D51).
 
 Reads the prompt text on stdin (built by coach_morning.sh / coach_evening.sh), records a
-`prompt_events` row, sends it with the check-in first (MIN-129, prompt_ui.py: [🙂 Check in]
-[Skip], then mood, module, then [✍️ Write entry] [Skip today]; a day with a mood logged
-already starts at Write entry), stores the Telegram id in
+`prompt_events` row, sends it with the check-in first (MIN-129, prompt_ui.py: morning [🙂 Check in]
+[Skip], then mood, module, then [✍️ Write entry] [Skip today], starting at Write entry when
+a mood is logged already; evening, MIN-133: module or No module, then Write entry),
+stores the Telegram id in
 `prompt_events` + `ui_messages` (reply-to matching), and clears any open hold (D45:
 a late hold lasts until the next prompt).
 
@@ -33,7 +34,7 @@ def buttons(conn, session: str, pid: int | None, chat_id: str, day: str) -> list
     if not pid:  # test send: no prompt row for the check-in steps to attach to
         return [[("✍️ Write entry", f"sc:write:{session}"), ("Skip today", f"sc:skip:{session}")]]
     state = checkins.today_state(conn, chat_id, day)
-    rows = prompt_ui.rows(prompt_ui.start_stage(state), {"id": pid, "session": session}, state)
+    rows = prompt_ui.rows(prompt_ui.start_stage(state, session), {"id": pid, "session": session}, state)
     return prompt_ui.as_tuples(rows)
 
 

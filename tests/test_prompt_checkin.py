@@ -108,26 +108,66 @@ check("Write entry from step 4 -> 'Go ahead' + write slot", out["actions"][0]["t
       and tg.get_pending(CHAT, now=at(7, 35))["kind"] == "write:morning")
 tg.clear_pending(CHAT)
 
-# --- No module, Skip ---------------------------------------------------------------------
+# --- morning: No module, Skip ---------------------------------------------------------------
 with conn:
     conn.execute("DELETE FROM checkin_events")
-    pe = prompts.record(conn, chat_id=CHAT, session="evening", message_id="501", now=at(20, 30))
-tap(pe, "go", at(20, 31))
-tap(pe, "m5", at(20, 31))
-out = tap(pe, "knone", at(20, 32))
-check("No module -> no module stored, ✓ Mood 5 + Write/Skip", state() == {"mood": "5"}
+tap(pm, "go", at(7, 40))
+tap(pm, "m5", at(7, 40))
+out = tap(pm, "knone", at(7, 41))
+check("morning No module -> no module stored, ✓ Mood 5 + Write/Skip", state() == {"mood": "5"}
       and labels(out) == [["✓ Mood 5"], ["✍️ Write entry", "Skip today"]], out)
 with conn:
     conn.execute("DELETE FROM checkin_events")
-out = tap(pe, "skip", at(20, 33))
+out = tap(pm, "skip", at(7, 42))
 check("Skip check-in -> 'Check-in skipped' + Write/Skip, nothing stored",
       labels(out) == [["Check-in skipped"], ["✍️ Write entry", "Skip today"]] and state() == {}, out)
 
+
+# --- evening (MIN-133): module step only, lands on the evening entry --------------------------------
+def entry(session, day, now):
+    with conn:
+        cur = conn.execute("INSERT INTO journal_entries (date, session, raw_response, created_at, mood_source) "
+                           "VALUES (?, ?, 'x', ?, 'inferred')", (day, session, now.isoformat()))
+    checkins.merge_into_entry(conn, cur.lastrowid, CHAT)
+    return cur.lastrowid
+
+
+def module_of(eid):
+    return conn.execute("SELECT module FROM journal_entries WHERE id = ?", (eid,)).fetchone()[0]
+
+
+with conn:
+    checkins.upsert(conn, chat_id=CHAT, ctype="module", value="happiness", source="button", now=at(7, 45))
+e_m = entry("morning", "2026-10-09", at(8))
+check("morning entry gets the morning module", module_of(e_m) == "happiness")
+with conn:
+    pe = prompts.record(conn, chat_id=CHAT, session="evening", message_id="501", now=at(20, 30))
+out = tap(pe, "kcreativity", at(20, 32))
+check("evening module -> stored, '✓ Creativity' + Write/Skip (no mood row)",
+      state().get("module") == "creativity"
+      and labels(out) == [["✓ Creativity"], ["✍️ Write entry", "Skip today"]], out)
+e_e = entry("evening", "2026-10-09", at(21))
+check("evening entry gets the evening module; morning entry keeps its own",
+      module_of(e_e) == "creativity" and module_of(e_m) == "happiness")
+
+with conn:
+    checkins.upsert(conn, chat_id=CHAT, ctype="module", value="emotions", source="button", now=at(7, 45, day=12))
+e_m2 = entry("morning", "2026-10-12", at(8, day=12))
+with conn:
+    pe2 = prompts.record(conn, chat_id=CHAT, session="evening", message_id="504", now=at(20, 30, day=12))
+out = tap(pe2, "knone", at(20, 32, day=12))
+check("evening No module -> 'No module' even with a morning module in the DB",
+      labels(out) == [["No module"], ["✍️ Write entry", "Skip today"]]
+      and state("2026-10-12").get("module") == "emotions", out)
+e_e2 = entry("evening", "2026-10-12", at(21, day=12))
+check("evening No module -> the evening entry gets no module (morning's isn't carried over)",
+      module_of(e_e2) is None and module_of(e_m2) == "emotions")
+
 # --- evening after midnight, stale, foreign --------------------------------------------------
-out = tap(pe, "m4", at(0, 30, day=10))
+out = tap(pe, "kemotions", at(0, 30, day=10))
 check("evening prompt tapped after midnight -> counts for its journaling day",
-      state("2026-10-09") == {"mood": "4"} and not state("2026-10-10"), out)
-check("next day after 07:30 -> Expired", labels(tap(pe, "m3", at(7, 35, day=10))) == [["Expired"]])
+      state("2026-10-09").get("module") == "emotions" and not state("2026-10-10"), out)
+check("next day after 07:30 -> Expired", labels(tap(pe, "khappiness", at(7, 35, day=10))) == [["Expired"]])
 check("another chat -> Expired", labels(tap(pm, "go", at(8), chat="123")) == [["Expired"]])
 check("unknown prompt -> Expired", labels(tap(9999, "go", at(8))) == [["Expired"]])
 check("malformed payload -> ignored", sc_dispatch.handle_callback({"payload": f"pc:{pm}:m11", "chatId": CHAT},
@@ -164,9 +204,17 @@ check("send_prompt, no mood -> [Check in] [Skip] with the prompt id", r.stdout.s
       and vals == [f"sc:pc:{pid}:go", f"sc:pc:{pid}:skip"], vals)
 with hc:
     checkins.upsert(hc, chat_id=CHAT, ctype="mood", value="8", source="command")
+r, vals, pid = send("morning")
+check("send_prompt morning, mood logged today -> starts at ✓ + Write/Skip",
+      vals == ["sc:noop", f"sc:write:morning:{pid}", f"sc:skip:morning:{pid}"], vals)
 r, vals, pid = send("evening")
-check("send_prompt, mood logged today -> starts at ✓ + Write/Skip", vals == ["sc:noop", f"sc:write:evening:{pid}",
-                                                                           f"sc:skip:evening:{pid}"], vals)
+EVENING = [f"sc:pc:{pid}:kemotions", f"sc:pc:{pid}:kcreativity", f"sc:pc:{pid}:khappiness", f"sc:pc:{pid}:knone"]
+check("send_prompt evening, mood logged -> module step, no mood row (MIN-133)", vals == EVENING, vals)
+with hc:
+    hc.execute("DELETE FROM checkin_events")
+r, vals, pid = send("evening")
+check("send_prompt evening, no mood -> still the module step, no mood step",
+      vals == [v.replace(f":{pid - 1}:", f":{pid}:") for v in EVENING], vals)
 r = subprocess.run([sys.executable, str(REPO / "send_prompt.py"), "--session", "morning"], input="t",
                    capture_output=True, text=True, env={**env, "STOICLIFE_SKIP_PROMPT_STATE": "1"})
 a = [json.loads(l)["args"] for l in FAKE.read_text().splitlines()][-1]

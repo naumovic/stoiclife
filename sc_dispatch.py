@@ -389,7 +389,9 @@ def handle_prompt_checkin(req: dict, pid: int, op: str, conn, now: datetime) -> 
         return {"actions": [{"type": "editButtons", "buttons": status_buttons("Expired")}]}
     day = p["local_date"]
     message_id = req.get("messageId")
-    stage, skipped = 4, False
+    stage, skipped, label = 4, False, None
+    if p["session"] == "evening" and op.startswith("k"):  # MIN-133: the label is this tap's pick
+        label = prompt_ui.module_label(None if op == "knone" else op[1:])
     if op == "go":
         stage = 2
     elif op == "skip":
@@ -403,7 +405,8 @@ def handle_prompt_checkin(req: dict, pid: int, op: str, conn, now: datetime) -> 
         tg.log("INFO", f"sc_dispatch: checkin {ctype}={value} chat={chat_id} day={day} (prompt {pid})")
         stage = 3 if ctype == "mood" else 4
     state = checkins.today_state(conn, chat_id, day)
-    return {"actions": [{"type": "editButtons", "buttons": prompt_ui.rows(stage, p, state, skipped=skipped)}]}
+    return {"actions": [{"type": "editButtons",
+                         "buttons": prompt_ui.rows(stage, p, state, skipped=skipped, label=label)}]}
 
 
 def handle_clarify_tap(req: dict, cid: int, choice: str, conn, now: datetime) -> dict:
