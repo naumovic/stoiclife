@@ -5,11 +5,13 @@ Called from the plugin's awaited `before_dispatch` hook via sc_dispatch.py, befo
 coach agent is involved. Priority:
 
   0. a tapped hold coming back as `callback_data: sc:hold:<e|c>:<id>` → the held text;
+     a tapped 🧭 "Yes, full read" (`callback_data: sc:clar:<id>:y`) → clarify (MIN-132);
      a `/command` → passthrough (OpenClaw / plugin commands, never routed)
   1. a legacy prefix (`morning prep:` …)              → entry, that session, prefix stripped
   2. a reply to a stored prompt message               → entry, that prompt's session
   3. a pending note / "Tell me more"                  → note (saved here, LLM-free, D42)
   4. a pending ✍️ Write / `/journal`                  → entry, its session (D49)
+  4b. an open CLARIFY 🧭 question and a bare yes / no  → clarify / clarify_no (MIN-132)
   5. an open prompt, inside its window:
        ends in `?` → hold [📝 It's my entry] [❓ It's a question]   (D46)
        otherwise   → entry                                           (D45)
@@ -26,11 +28,13 @@ import re
 from datetime import datetime
 
 import checkins
+import clarify
 import prompts
 import tg
 
 PREFIXES = {"morning prep:": "morning", "evening review:": "evening"}
 HOLD_CB_RE = re.compile(r"^callback_data:\s*sc:hold:([ec]):(\d+)\s*$")
+CLAR_CB_RE = re.compile(r"^callback_data:\s*sc:clar:(\d+):y\s*$")
 NOTE_KINDS = re.compile(r"^(fb_more:[rt]\d+|note:(mood|module):\d{8})$")
 WRITE_RE = re.compile(r"^write:(morning|evening)$")
 
@@ -65,6 +69,15 @@ def decide(conn, *, chat_id: str, text: str, reply_to_id=None, now: datetime | N
                     "text": hold["text"], "hold_id": hold["id"]}
         return {"route": "conversation", "session": None, "source": "stale_hold", "text": ""}
 
+    # 0b. a tapped 🧭 "Yes, full read" (sc_dispatch already recorded the answer)
+    m = CLAR_CB_RE.match(text.strip())
+    if m:
+        c = clarify.get(conn, int(m.group(1)))
+        if c and c["answer"] == "yes" and c["answer_source"] == "button" and not c["route_id"]:
+            return {"route": "clarify", "session": None, "source": "button", "text": "yes",
+                    "clarify_id": c["id"]}
+        return {"route": "conversation", "session": None, "source": "stale_clarify", "text": ""}
+
     if text.lstrip().startswith("/"):
         return {"route": "passthrough", "session": None, "source": "command", "text": text}
 
@@ -94,6 +107,14 @@ def decide(conn, *, chat_id: str, text: str, reply_to_id=None, now: datetime | N
         op = prompts.open_prompt(conn, chat_id, now)
         return {"route": "entry", "session": w.group(1), "source": "write", "text": text,
                 "prompt_id": op["id"] if op and op["session"] == w.group(1) else None}
+
+    # 4b. an open CLARIFY question: only a bare yes / no counts as the answer
+    c = clarify.pending(conn, chat_id, now)
+    if c:
+        ans = clarify.parse_answer(text)
+        if ans:
+            return {"route": "clarify" if ans == "yes" else "clarify_no", "session": None,
+                    "source": "typed", "text": text, "clarify_id": c["id"]}
 
     # 5./6. an open prompt
     op = prompts.open_prompt(conn, chat_id, now)

@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import checkins
+import clarify
 import prompts
 import route_entry
 import tg
@@ -49,6 +50,7 @@ PATTERNS = {
     "hold": re.compile(r"^hold:([ec]):(\d+)$"),
     "note": re.compile(r"^note:(mood|module)(?::(\d{8}))?$"),
     "noop": re.compile(r"^noop$"),
+    "clar": re.compile(r"^clar:(\d+):(y|n)$"),                     # MIN-132: clarify_prompts id
 }
 NOT_YET: dict = {}  # action -> phase that adds it (all live since Phase 4)
 WRITE_HOURS = 2
@@ -266,6 +268,8 @@ def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
         return handle_skip(req, groups[0], groups[1], conn, now)
     if action == "card":
         return handle_card(req, groups[0], conn, now)
+    if action == "clar":
+        return handle_clarify_tap(req, int(groups[0]), groups[1], conn, now)
     return {"actions": []}  # unreachable while PATTERNS and the branches agree
 
 
@@ -369,6 +373,26 @@ def handle_hold_tap(req: dict, choice: str, hold_id: int, now: datetime) -> dict
             "passToAgent": True}
 
 
+def handle_clarify_tap(req: dict, cid: int, choice: str, conn, now: datetime) -> dict:
+    """MIN-132: 🧭 Yes passes the tap on (route_entry 0b -> CLARIFY_YES for the coach); No ends it here."""
+    c = clarify.get(conn, cid)
+    if not c or c["chat_id"] != chat_of(req):
+        return {"actions": [{"type": "editButtons", "buttons": status_buttons("Expired")}]}
+    if c["event_sent"]:
+        return {"actions": [{"type": "editButtons", "buttons": status_buttons("✓ Full read sent")}]}
+    if c["answer"]:
+        return {"actions": [{"type": "editButtons", "buttons": status_buttons("✓ Already answered")}]}
+    if not clarify.is_open(c, now):
+        return {"actions": [{"type": "editButtons", "buttons": status_buttons("Expired")}]}
+    if choice == "n":
+        clarify.answer(conn, cid, "no", "button", now)
+        return {"actions": [{"type": "editButtons", "buttons": status_buttons("✓ No full read")}]}
+    clarify.answer(conn, cid, "yes", "button", now)
+    tg.log("INFO", f"sc_dispatch: clarify #{cid} yes; passing to the coach")
+    return {"actions": [{"type": "editButtons", "buttons": status_buttons("✓ Full read coming")}],
+            "passToAgent": True}
+
+
 def record_route(conn, chat_id: str, session_key, d: dict, now: datetime) -> int:
     with conn:
         cur = conn.execute(
@@ -392,9 +416,18 @@ def handle_dispatch(req: dict, conn=None, now: datetime | None = None) -> dict:
     route = d["route"]
     if route == "passthrough":
         return {"handled": False}
-    if d["source"] == "stale_hold":
-        tg.log("INFO", "sc_dispatch: synthetic tap for a stale hold; dropped")
+    if d["source"] in ("stale_hold", "stale_clarify"):
+        tg.log("INFO", f"sc_dispatch: synthetic tap ({d['source']}); dropped")
         return {"handled": True}
+    if route == "clarify_no":  # MIN-132: a typed no, answered here
+        clarify.answer(conn, d["clarify_id"], "no", "typed", now)
+        record_route(conn, chat_id, key, d, now)
+        return {"handled": True, "text": "OK, no full read."}
+    if route == "clarify":
+        if d["source"] == "typed":
+            clarify.answer(conn, d["clarify_id"], "yes", "typed", now)
+        clarify.link_route(conn, d["clarify_id"], record_route(conn, chat_id, key, d, now))
+        return {"handled": False}
     if route == "note":  # D42: saved and answered here, no agent turn
         import save_pending_note
         if save_pending_note.save_note(d["text"], chat_id, conn):
@@ -433,6 +466,9 @@ def route_line(row: dict) -> str:
     if route == "entry":
         head += (f"ENTRY session={session} source={row['source']}. Save the message below as his "
                  f"{session} entry (AGENTS.md §1), using exactly this text.")
+    elif route == "clarify" and row.get("event_id"):
+        head += (f"CLARIFY_YES event={row['event_id']}. He asked for the full stoiclife read: follow "
+                 f"AGENTS.md §1b with event {row['event_id']}. Don't run stoiclife_run.py.")
     elif route == "ask_text":
         head += (f"ASK session={session}. Ask him in one line whether to save the message below as "
                  f"his {SESSION_LABEL[session]}; save it only on a clear yes.")
@@ -452,11 +488,11 @@ def handle_inject(req: dict, conn=None, now: datetime | None = None) -> dict:
     since = (now - timedelta(minutes=2)).isoformat()
     cols = ("id", "route", "session", "source", "text")
     row = conn.execute("SELECT id, route, session, source, text FROM route_events WHERE session_key = ? "
-                       "AND route IN ('entry', 'conversation', 'ask_text') AND injected_at IS NULL AND at >= ? ORDER BY id DESC LIMIT 1", (key, since)).fetchone()
+                       "AND route IN ('entry', 'conversation', 'ask_text', 'clarify') AND injected_at IS NULL AND at >= ? ORDER BY id DESC LIMIT 1", (key, since)).fetchone()
     how = "key"
     if not row:  # P4-D13 fallback
         row = conn.execute("SELECT id, route, session, source, text FROM route_events WHERE chat_id = ? "
-                           "AND route IN ('entry', 'conversation', 'ask_text') AND injected_at IS NULL AND at >= ? ORDER BY id DESC LIMIT 1",
+                           "AND route IN ('entry', 'conversation', 'ask_text', 'clarify') AND injected_at IS NULL AND at >= ? ORDER BY id DESC LIMIT 1",
                            (chat_of(req), since)).fetchone()
         how = "chat"
     if not row:
@@ -464,6 +500,9 @@ def handle_inject(req: dict, conn=None, now: datetime | None = None) -> dict:
         return {"prependContext": "[stoiclife route] NONE recorded. Treat his message as conversation "
                                   "(AGENTS.md §3); if it looks like a journal entry, suggest /journal."}
     r = dict(zip(cols, row))
+    if r["route"] == "clarify":
+        c = clarify.for_route(conn, r["id"])
+        r["event_id"] = c["event_id"] if c else None
     with conn:
         conn.execute("UPDATE route_events SET injected_at = ? WHERE id = ?", (now.isoformat(), r["id"]))
     tg.log("INFO", f"sc_dispatch: route #{r['id']} injected ({how} match) key={key}")
@@ -496,7 +535,7 @@ def handle_message(req: dict) -> dict:
 
 SILENT_TOKEN = re.compile(r"\bNO_REPLY\b", re.IGNORECASE)
 WORDS = re.compile(r"[^\W_]", re.UNICODE)  # any letter or digit
-SCRIPT_SENDS = ("send_coaching.py", "record_coaching.py")
+SCRIPT_SENDS = ("send_coaching.py", "record_coaching.py", "clarify.py")
 CLARIFY_PREFIX = "🧭 stoiclife"
 
 

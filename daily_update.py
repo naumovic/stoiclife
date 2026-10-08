@@ -30,6 +30,7 @@ import sys
 from datetime import datetime
 
 import checkins
+import clarify as clarify_q
 import prompts
 import tg
 from trigger_matrix import fetch_baseline_rows, load_config, pct_delta, rolling_avg
@@ -211,7 +212,14 @@ def main(argv=None) -> int:
     mid = tg.send(text, btns or None, silent=True, chat_id=chat_id)
     escalation = "none"
     if action == "CLARIFY" and clarify:
-        tg.send(clarify, chat_id=chat_id)  # audible: the one notification (D53)
+        # audible: the one notification (D53); MIN-132: with Yes/No buttons, so the answer routes
+        try:
+            if event_id is None:
+                raise ValueError("no event_id in the engine output")
+            clarify_q.send(conn, event_id, chat_id=chat_id)
+        except Exception as exc:
+            tg.log("ERROR", f"daily_update: clarify send failed ({exc}); sending the plain line")
+            tg.send(clarify, chat_id=chat_id)
         escalation = "clarify"
     elif action == "SEND_FULL":
         escalation = "send_full" if escalate_send_full(engine_out, day, chat_id) else "send_full_failed"

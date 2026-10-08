@@ -22,6 +22,7 @@ His message:
 
 - **`ENTRY session=<morning|evening>`** → it's a journal entry for that session. Use the text between `<<<` and `>>>` **verbatim** as the entry (the plugin already removed any `morning prep:` / `evening review:` prefix). Go to step 2.
 - **`CONVERSATION`** → not a journal entry. Answer the text between `<<<` and `>>>` per section 3. (If it came from a 💬 / ❓ button, that text is the message he held back: answer it now.)
+- **`CLARIFY_YES event=<id>`** → he said yes (typed or 🧭 button) to a "want the full read?" question. Go to §1b with that event id.
 - **`ASK session=…`** → ask him in one line whether to save that text as his morning prep / evening review; save it only on a clear yes (then step 2, same text).
 - **`NONE recorded`** → the plugin couldn't route it. Treat it as conversation, and if it reads like a journal entry, suggest `/journal`. Don't save anything on a guess.
 
@@ -48,10 +49,19 @@ Scheduled (cron) turns have no route line: follow section 4.
    - Follow its `# AGENT:` lines. Coaching messages are **sent by scripts** (they add 👍/👎 buttons), never as your own reply text:
      - **Send coaching_text** = `printf '%s' "<coaching_text>" | python3 /home/mihajlo/projects/stoiclife/send_coaching.py --kind r --entry-id <id> --session <morning|evening> --text-stdin` (prints `NO_REPLY` on success).
      - `SEND_FULL` → compose the stoiclife message in the strict format it prints and run the printed `record_coaching.py … --send` command: it validates, records **and sends** it (fix and retry once if rejected, exit 2). This replaces coaching_text. **Exception: if a Stoic module was requested,** first send the module coaching_text (send_coaching above), then run the `record_coaching … --send` command, so the module reply is never lost.
-     - `CLARIFY` → send coaching_text (send_coaching above), then reply with the printed 🧭 line as your own reply (no buttons on it).
+     - `CLARIFY` → send coaching_text (send_coaching above), then `python3 /home/mihajlo/projects/stoiclife/clarify.py --event-id <event_id from the "# date=… event_id=N" line>`. It sends the 🧭 question with Yes/No buttons and prints `NO_REPLY`. Never type the 🧭 line yourself.
      - `SILENT` / `HOLD_QUIET` → send coaching_text with any `STOICLIFE_STATUS:` line appended verbatim as its last line (send_coaching above).
-7. Your own reply: exactly `NO_REPLY` once the scripts have sent everything (`NO_REPLY` is only ever right after a script has sent the reply; never answer one of his messages with `NO_REPLY` otherwise) (the 🧭 line is the only exception, see CLARIFY). Never repeat a message a script already sent. If `send_coaching.py` fails (non-zero), reply with the coaching_text yourself so it isn't lost, then one line saying the button send failed. If `record_coaching … --send` exits 3, the push wasn't delivered: say so in one line. If another script fails, say which step failed in one line, and don't pretend it saved.
-   - No narration in steps 2–7 (see the top): just call the tools, then end with the bare `NO_REPLY` (or the bare 🧭 line for CLARIFY).
+7. Your own reply: exactly `NO_REPLY` once the scripts have sent everything (`NO_REPLY` is only ever right after a script has sent the reply; never answer one of his messages with `NO_REPLY` otherwise). Never repeat a message a script already sent. If `send_coaching.py` fails (non-zero), reply with the coaching_text yourself so it isn't lost, then one line saying the button send failed. If `record_coaching … --send` exits 3, the push wasn't delivered: say so in one line. If another script fails, say which step failed in one line, and don't pretend it saved.
+   - No narration in steps 2–7 (see the top): just call the tools, then end with the bare `NO_REPLY`.
+
+## 1b. Full read after a CLARIFY yes (route `CLARIFY_YES event=<id>`)
+
+The answer is already recorded; only the full read is left. Exactly these steps, no others:
+1. `python3 /home/mihajlo/projects/stoiclife/build_payload.py --event-id <id> --channel telegram` prints the instructions, the data and the strict format.
+2. Compose the message in that format, then `printf '%s' "<message>" | python3 /home/mihajlo/projects/stoiclife/record_coaching.py --event-id <id> --channel telegram --send`. It validates, records and sends it (👍/👎 buttons) and prints `NO_REPLY`. If it rejects (exit 2), fix the format and retry once. Exit 3: say in one line that the read wasn't delivered.
+3. Reply exactly `NO_REPLY`.
+
+**Never** run `stoiclife_run.py` here (it logs a duplicate event), and don't read the scripts' source or query the DB to work it out.
 
 ## 2. Typed feedback on a coaching message
 
