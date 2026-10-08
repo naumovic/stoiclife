@@ -167,3 +167,7 @@ Missing pieces get buttons: `No morning entry yet` → `[✍️ Write entry]`; `
 - [x] `ux_metrics.py <from> <to> [--json]` (repo root; spec said `scripts/`, this repo keeps scripts at the root). Read-only (`mode=ro`). Reports: completion + skip per session, median prompt → entry, mood/module logging rate by source, feedback rate + 👍 share by kind / session / flagged vs unflagged (+ 👎 reasons), entries by input method (from `route_events`; older entries → "before routing"), daily-update outcomes. Tests `tests/test_feat07_phase6.py` 15/15.
 - [ ] Self-test (two weeks from 2026-10-08): run `python3 ux_metrics.py 2026-10-08 <today>` and log bugs in `docs/PROGRESS.md`.
 - [ ] Legacy prefix removal: only after a week with zero `legacy prefix` entries in the metrics (and zero `legacy_prefix` check-ins). Separate, reviewed change.
+
+## Self-test fixes (Linear)
+- [x] **MIN-127** duplicate "Go ahead" / narration (adc00fb); **MIN-128** outbound guard + coach streaming off (8373b5e); **MIN-132** CLARIFY Yes/No buttons + routed answer (aaa97a8, 0ca9771). Details in OPERATIONS.md.
+- [x] **MIN-129** (2026-10-08): the prompt's check-in comes first, in place: [🙂 Check in] [Skip] → mood → module / No module → [✍️ Write entry] [Skip today] (`prompt_ui.py`, `sc:pc:<pid>:…`). A day with a mood already logged starts at Write entry. Skip today offers Check in only while no mood is logged. Tests `tests/test_prompt_checkin.py` 19/19. First real use: 07:30 Coach Morning, 2026-10-09.

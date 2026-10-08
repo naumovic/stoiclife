@@ -30,6 +30,7 @@ from pathlib import Path
 
 import checkins
 import clarify
+import prompt_ui
 import prompts
 import route_entry
 import tg
@@ -51,6 +52,8 @@ PATTERNS = {
     "note": re.compile(r"^note:(mood|module)(?::(\d{8}))?$"),
     "noop": re.compile(r"^noop$"),
     "clar": re.compile(r"^clar:(\d+):(y|n)$"),                     # MIN-132: clarify_prompts id
+    # MIN-129: the prompt's in-place check-in steps (prompt_ui.py)
+    "pc": re.compile(r"^pc:(\d+):(go|skip|m(?:10|[1-9])|k(?:emotions|creativity|happiness|none))$"),
 }
 NOT_YET: dict = {}  # action -> phase that adds it (all live since Phase 4)
 WRITE_HOURS = 2
@@ -270,6 +273,8 @@ def handle_callback(req: dict, conn=None, now: datetime | None = None) -> dict:
         return handle_card(req, groups[0], conn, now)
     if action == "clar":
         return handle_clarify_tap(req, int(groups[0]), groups[1], conn, now)
+    if action == "pc":
+        return handle_prompt_checkin(req, int(groups[0]), groups[1], conn, now)
     return {"actions": []}  # unreachable while PATTERNS and the branches agree
 
 
@@ -345,7 +350,8 @@ def handle_skip(req: dict, session: str, pid: str | None, conn, now: datetime) -
         return {"actions": [{"type": "editButtons", "buttons": status_buttons("✓ Already answered")}]}
     do_skip(conn, chat_id, p, now)
     rows = status_buttons("✓ Skipped today")
-    rows.append([btn("🙂 Check in", f"sc:card:{day_tag(p['local_date'])}")])
+    if not checkins.today_state(conn, chat_id, p["local_date"]).get("mood"):  # MIN-129: done already
+        rows.append([btn("🙂 Check in", f"sc:card:{day_tag(p['local_date'])}")])
     return {"actions": [{"type": "editButtons", "buttons": rows}]}
 
 
@@ -371,6 +377,33 @@ def handle_hold_tap(req: dict, choice: str, hold_id: int, now: datetime) -> dict
     return {"actions": [{"type": "editButtons",
                          "buttons": status_buttons(route_entry.chosen_label(hold, resolved))}],
             "passToAgent": True}
+
+
+def handle_prompt_checkin(req: dict, pid: int, op: str, conn, now: datetime) -> dict:
+    """MIN-129: one step of the prompt's check-in; the prompt's buttons move on in place."""
+    chat_id = chat_of(req)
+    p = prompts.get(conn, pid)
+    # local_date is the journaling day (until 07:30), so a late evening tap still counts for its day
+    if not p or str(p["chat_id"]) != chat_id or p["local_date"] != checkins.local_date(now):
+        tg.log("INFO", f"sc_dispatch: stale prompt check-in tap pc:{pid}:{op}")
+        return {"actions": [{"type": "editButtons", "buttons": status_buttons("Expired")}]}
+    day = p["local_date"]
+    message_id = req.get("messageId")
+    stage, skipped = 4, False
+    if op == "go":
+        stage = 2
+    elif op == "skip":
+        skipped = True
+        tg.log("INFO", f"sc_dispatch: prompt {pid} check-in skipped")
+    elif op != "knone":
+        ctype, value = ("mood", op[1:]) if op[0] == "m" else ("module", op[1:])
+        with conn:
+            checkins.upsert(conn, chat_id=chat_id, ctype=ctype, value=value, source="button",
+                            day=day, message_id=str(message_id) if message_id else None, now=now)
+        tg.log("INFO", f"sc_dispatch: checkin {ctype}={value} chat={chat_id} day={day} (prompt {pid})")
+        stage = 3 if ctype == "mood" else 4
+    state = checkins.today_state(conn, chat_id, day)
+    return {"actions": [{"type": "editButtons", "buttons": prompt_ui.rows(stage, p, state, skipped=skipped)}]}
 
 
 def handle_clarify_tap(req: dict, cid: int, choice: str, conn, now: datetime) -> dict:

@@ -2,16 +2,17 @@
 """FEAT-07 Phase 4: send the morning/evening prompt with buttons (D47, D48, D51).
 
 Reads the prompt text on stdin (built by coach_morning.sh / coach_evening.sh), records a
-`prompt_events` row, sends it with [✍️ Write entry] [Skip today] and [🙂 Check in]
-(evening: Check in only if no mood is logged today), stores the Telegram id in
+`prompt_events` row, sends it with the check-in first (MIN-129, prompt_ui.py: [🙂 Check in]
+[Skip], then mood, module, then [✍️ Write entry] [Skip today]; a day with a mood logged
+already starts at Write entry), stores the Telegram id in
 `prompt_events` + `ui_messages` (reply-to matching), and clears any open hold (D45:
 a late hold lasts until the next prompt).
 
 stdout is what the command cron delivers: `NO_REPLY` after a successful send, or the
 prompt text itself if sending failed (D51: a prompt is never lost).
 
-STOICLIFE_SKIP_PROMPT_STATE=1 (test runs): send the buttons but record nothing, so the
-test doesn't open a prompt window.
+STOICLIFE_SKIP_PROMPT_STATE=1 (test runs): record nothing, so the test doesn't open a prompt
+window, and send plain [✍️ Write entry] [Skip today] (the check-in steps need a prompt id).
 
     printf '%s' "$TEXT" | python3 send_prompt.py --session morning
 """
@@ -22,17 +23,18 @@ import os
 import sys
 
 import checkins
+import prompt_ui
 import prompts
 import route_entry
 import tg
 
 
-def buttons(session: str, pid: int | None, day: str, with_card: bool) -> list:
-    sfx = f":{pid}" if pid else ""
-    rows = [[("✍️ Write entry", f"sc:write:{session}{sfx}"), ("Skip today", f"sc:skip:{session}{sfx}")]]
-    if with_card:
-        rows.append([("🙂 Check in", f"sc:card:{day.replace('-', '')}")])
-    return rows
+def buttons(conn, session: str, pid: int | None, chat_id: str, day: str) -> list:
+    if not pid:  # test send: no prompt row for the check-in steps to attach to
+        return [[("✍️ Write entry", f"sc:write:{session}"), ("Skip today", f"sc:skip:{session}")]]
+    state = checkins.today_state(conn, chat_id, day)
+    rows = prompt_ui.rows(prompt_ui.start_stage(state), {"id": pid, "session": session}, state)
+    return prompt_ui.as_tuples(rows)
 
 
 def main() -> int:
@@ -54,8 +56,7 @@ def main() -> int:
             with conn:
                 pid = prompts.record(conn, chat_id=chat_id, session=args.session, message_id=None, now=now)
             route_entry.clear_hold(chat_id)
-        with_card = args.session == "morning" or not checkins.today_state(conn, chat_id, day).get("mood")
-        mid = tg.send(text, buttons(args.session, pid, day, with_card), chat_id=chat_id)
+        mid = tg.send(text, buttons(conn, args.session, pid, chat_id, day), chat_id=chat_id)
         if pid:
             with conn:
                 conn.execute("UPDATE prompt_events SET message_id = ? WHERE id = ?", (mid, pid))

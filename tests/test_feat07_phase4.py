@@ -228,8 +228,10 @@ check("text after Write -> entry directly (no hold), slot cleared",
       and tg.get_pending(CHAT, now=at(13, 46)) is None)
 tg.write_state({**tg.read_state(), "awaiting_response": True, "session": "morning", "prompt_sent_at": at(7, 30).isoformat()})
 out = sc_dispatch.handle_callback({"payload": f"skip:morning:{pm}", "chatId": CHAT}, conn, at(14))
-check("Skip -> '✓ Skipped today' + Check in kept", [[b["text"] for b in r] for r in out["actions"][0]["buttons"]]
-      == [["✓ Skipped today"], ["🙂 Check in"]], out)
+has_mood = bool(checkins.today_state(conn, CHAT, "2026-10-08").get("mood"))
+check("Skip -> '✓ Skipped today', Check in only while no mood is logged (MIN-129)",
+      [[b["text"] for b in r] for r in out["actions"][0]["buttons"]]
+      == ([["✓ Skipped today"]] if has_mood else [["✓ Skipped today"], ["🙂 Check in"]]), out)
 check("skip recorded + legacy awaiting cleared", prompts.get(conn, pm)["skipped_at"] and not tg.read_state()["awaiting_response"])
 check("after skip -> conversation", route_entry.decide(conn, chat_id=CHAT, text="hi", now=at(14, 5))["route"] == "conversation")
 out = sc_dispatch.handle_callback({"payload": "card:20261008", "chatId": CHAT}, conn, at(14))
@@ -257,8 +259,8 @@ check("send_prompt -> NO_REPLY + prompt row with message id", r.stdout.strip() =
 check("ui_messages prompt_evening recorded", hc.execute("SELECT kind, ref_id FROM ui_messages").fetchall() == [("prompt_evening", pr[0][0])])
 a = sent()[-1]
 vals = [b["value"] for blk in json.loads(a[a.index("--presentation") + 1])["blocks"] for b in blk["buttons"]]
-check("buttons carry the prompt id; evening Check in when no mood", vals[:2] == [f"sc:write:evening:{pr[0][0]}", f"sc:skip:evening:{pr[0][0]}"]
-      and vals[2].startswith("sc:card:"), vals)
+check("no mood yet -> check-in first, carrying the prompt id (MIN-129)",
+      vals == [f"sc:pc:{pr[0][0]}:go", f"sc:pc:{pr[0][0]}:skip"], vals)
 r = subprocess.run([sys.executable, str(REPO / "send_prompt.py"), "--session", "morning"], input="☀️ Morning prep\n\nGo",
                    capture_output=True, text=True, env={**env, tg.FAKE_ENV: str(TMP)})
 check("failed send -> prints the prompt text (D51)", r.returncode == 0 and r.stdout.startswith("☀️ Morning prep"), r.stdout + r.stderr)
