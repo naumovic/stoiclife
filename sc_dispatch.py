@@ -490,6 +490,50 @@ def handle_message(req: dict) -> dict:
     return {"saved": saved}
 
 
+# --- MIN-127/MIN-128: outbound guard on the coach's own text ------------------------------
+# OpenClaw delivers every text block of a turn and drops only a payload that is exactly
+# NO_REPLY, so narration ("Now I'll compose…") and "🧭\n\nNO_REPLY" leaked to the chat.
+
+SILENT_TOKEN = re.compile(r"\bNO_REPLY\b", re.IGNORECASE)
+WORDS = re.compile(r"[^\W_]", re.UNICODE)  # any letter or digit
+SCRIPT_SENDS = ("send_coaching.py", "record_coaching.py")
+CLARIFY_PREFIX = "🧭 stoiclife"
+
+
+def script_sent_ok(tools: list) -> bool:
+    """True when a coaching script sent the reply in this run and no later step failed."""
+    sent = False
+    for t in tools or []:
+        cmd, out, err = str(t.get("command") or ""), str(t.get("output") or ""), t.get("error")
+        failed = bool(err) or "exited with code" in out
+        if any(s in cmd for s in SCRIPT_SENDS) and not failed and out.strip().endswith("NO_REPLY"):
+            sent = True
+        elif sent and failed:
+            return False  # a step after the send failed: let the coach say so
+    return sent
+
+
+def handle_outbound(req: dict) -> dict:
+    """The plugin's reply_payload_sending hook for the coach account.
+
+    Returns {} (send as is), {"text": ...} (send this instead) or {"cancel": reason}.
+    """
+    text = str(req.get("text") or "")
+    if not text.strip():
+        return {}
+    stripped = SILENT_TOKEN.sub("", text).strip()
+    if not WORDS.search(stripped):
+        tg.log("INFO", f"sc_dispatch: outbound cancelled (no words): {text[:60]!r}")
+        return {"cancel": "no_words"}
+    if script_sent_ok(req.get("tools")) and not stripped.startswith(CLARIFY_PREFIX):
+        tg.log("INFO", f"sc_dispatch: outbound cancelled (script already sent the reply): {text[:80]!r}")
+        return {"cancel": "script_sent"}
+    if stripped != text.strip():
+        tg.log("INFO", f"sc_dispatch: outbound stripped NO_REPLY: {text[:60]!r}")
+        return {"text": stripped}
+    return {}
+
+
 def main() -> int:
     try:
         req = json.loads(sys.stdin.read() or "{}")
@@ -503,11 +547,13 @@ def main() -> int:
                else handle_dispatch(req) if kind == "dispatch"
                else handle_inject(req) if kind == "inject"
                else handle_message(req) if kind == "message"
+               else handle_outbound(req) if kind == "outbound"
                else handle_callback(req))
     except Exception as exc:  # never let a tap crash into the agent; log and do nothing
         tg.log("ERROR", f"sc_dispatch: {type(exc).__name__}: {exc} (req={req!r})")
         out = ({"reply": {"text": "Something went wrong; it's logged."}} if req.get("kind") == "command"
                else {"saved": False} if req.get("kind") == "message"
+               else {} if req.get("kind") == "outbound"  # fail open: send as is
                else {"handled": False} if req.get("kind") == "dispatch"
                else {"prependContext": "[stoiclife route] NONE recorded (router error). Treat his "
                                        "message as conversation."} if req.get("kind") == "inject"

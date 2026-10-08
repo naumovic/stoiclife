@@ -164,6 +164,57 @@ export default {
       }
       return;
     });
-    log.info("stoic-coach-ui: registered sc namespace, /mood /module /journal /skip, before_dispatch + before_prompt_build");
+    // MIN-127/MIN-128: OpenClaw delivers every text block of a turn and drops only an exact
+    // NO_REPLY, so narration and "🧭\n\nNO_REPLY" leaked. after_tool_call just records the
+    // coach's exec calls per run; sc_dispatch.handle_outbound decides each outgoing payload.
+    const runTools = new Map(); // runId -> [{command, output, error}]
+    const textOf = (r) => {
+      if (r == null) return "";
+      if (typeof r === "string") return r;
+      if (Array.isArray(r.content)) {
+        const t = r.content.filter((p) => p?.type === "text").map((p) => p.text).join("\n");
+        const code = r.details?.exitCode;
+        return code != null && code !== 0 ? `${t}\n(Command exited with code ${code})` : t;
+      }
+      try {
+        return JSON.stringify(r);
+      } catch {
+        return String(r);
+      }
+    };
+    api.on("after_tool_call", (event, ctx) => {
+      if (ctx?.agentId !== "coach" || event?.toolName !== "exec") return;
+      const runId = event.runId ?? ctx.runId;
+      if (!runId) return;
+      if (!runTools.has(runId)) {
+        runTools.set(runId, []);
+        if (runTools.size > 50) runTools.delete(runTools.keys().next().value);
+      }
+      runTools.get(runId).push({
+        command: String(event.params?.command ?? "").slice(0, 400),
+        output: textOf(event.result).slice(-400),
+        error: event.error ?? null,
+      });
+    });
+
+    api.on("reply_payload_sending", async (event, ctx) => {
+      if (ctx?.channelId !== "telegram" || ctx?.accountId !== COACH_ACCOUNT) return;
+      const text = event?.payload?.text;
+      if (typeof text !== "string" || !text.trim()) return;
+      try {
+        const out = await runDispatch({
+          kind: "outbound",
+          text,
+          dispatchKind: event.kind,
+          tools: runTools.get(event.runId ?? ctx.runId) ?? [],
+        });
+        if (out?.cancel) return { cancel: true, reason: `stoic-coach-ui: ${out.cancel}` };
+        if (typeof out?.text === "string") return { payload: { ...event.payload, text: out.text } };
+      } catch (e) {
+        log.error(`stoic-coach-ui: reply_payload_sending: ${e?.message ?? e}`);
+      }
+      return; // fail open: send as is
+    });
+    log.info("stoic-coach-ui: registered sc namespace, /mood /module /journal /skip, before_dispatch + before_prompt_build + outbound guard");
   },
 };

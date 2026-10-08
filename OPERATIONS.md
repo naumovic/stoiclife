@@ -49,6 +49,8 @@ Fitbit 07:00 / 10:00 failure alerts go to **both** WhatsApp and the coach bot (`
 
 `plugin/stoic-coach-ui/` (linked install, `plugins.load.paths`) claims Telegram callbacks starting `sc:` and the `/mood /module /journal /skip` commands on the coach account, and pipes each one to `sc_dispatch.py`. All logic is in Python, so editing `sc_dispatch.py`, `checkins.py` or `tg.py` needs **no** restart; editing `index.js` or the manifest does. Logs: `~/.openclaw/stoic/stoic.log` (`tg:` / `sc_dispatch:` lines) and `journalctl --user -u openclaw-gateway | grep stoic-coach-ui`. Schema: `python3 migrate.py --status` (`migrations/NNN_*.sql`; the runner backs up the DB first). Working file: `docs/FEAT07-UX-TELEGRAM-SEED.md`.
 
+**Outbound guard (MIN-127/MIN-128, 2026-10-08):** OpenClaw delivers every text block of a coach turn and drops only an exact `NO_REPLY`. So the plugin's `reply_payload_sending` hook asks `sc_dispatch.handle_outbound` about each coach text. It strips stray `NO_REPLY` tokens and cancels wordless payloads (a lone 🧭). It also cancels any further text once `send_coaching.py`/`record_coaching.py` sent the reply in that run, except the CLARIFY 🧭 line or after a later failed step. It fails open. Log: `sc_dispatch: outbound …` lines. The coach account also has `streaming: {mode: "off"}` (no live preview), so pre-tool text can't flash up mid-turn. Config backup from before that change: `~/.openclaw/openclaw.json.pre-min127-20261008-211040`.
+
 **Self-test metrics:** `python3 ux_metrics.py 2026-10-08 $(date +%F)` (read-only; `--json` for raw numbers).
 
 **Rollback (one command; config snapshot taken before the install):**
