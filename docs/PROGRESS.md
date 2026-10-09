@@ -190,6 +190,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-09: MIN-137, bold headings in the coach's morning/evening prompts.** `channel_fmt.bold_headings` bolds `Label:` prefixes and short colon-free heading lines; the coach scripts apply it at send time, and the shared prompt files are untouched (WhatsApp rollback). Tests 30/30, all suites green.
 
+- **2026-10-09: Voice journal entries live.** OpenClaw `tools.media.audio` is on: Gemini 2.5 Flash, coach sessions only, transcript echoed (`📝 "…"`). Probe 1 found that `before_dispatch` only sees `<media:audio>`, because transcription runs later. So `before_prompt_build` now passes the prompt and `handle_inject` swaps in the transcript. A late voice note becomes `ask_text` instead of a hold, a voice note is never a "Tell me more" note, and an untranscribed one gets `VOICE NOT TRANSCRIBED`. `save_entry` reads mood number words ("Mood seven."). `ux_metrics` labels voice as an input method. Probe 2 (route #18) put the transcript in the route line, verified. Gateway restarted twice (config, then `index.js`). Tests: `test_voice.py` 19/19, `test_manual_mood.py` 36/36, all suites green. Cost is about $0.30–0.50 a month at 2 notes a day.
+
 ## Open questions for Mihajlo
 
 - (none open)

@@ -33,6 +33,7 @@ METHOD_LABELS = {
     "hold": "confirmed via hold buttons",
     "write": "button-started (✍️ / /journal)",
     "prefix": "legacy prefix",
+    "voice": "voice note (transcribed)",
 }
 
 

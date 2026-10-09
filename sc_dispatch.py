@@ -468,13 +468,34 @@ def handle_dispatch(req: dict, conn=None, now: datetime | None = None) -> dict:
         route_entry.clear_hold(chat_id)
     if d["route"] == "entry" and d["source"] == "write":
         tg.clear_pending(chat_id)  # the ✍️ Write / /journal slot is used up
+    if route_entry.is_voice(d.get("text") or ""):
+        d = {**d, "source": "voice"}  # input method; handle_inject fills in the transcript
     record_route(conn, chat_id, key, d, now)
     return {"handled": False}
+
+
+# OpenClaw appends the voice-note transcript to the user prompt (verified 2026-10-09):
+#   [Audio transcript (machine-generated, untrusted)]: "Testing voice notes. Mood seven."
+TRANSCRIPT_RE = re.compile(r"\[Audio transcript[^\]]*\]:[ \t]*")
+
+
+def transcript_from(prompt: str) -> str | None:
+    """The voice-note transcript in the prompt (last one, quotes stripped), or None."""
+    hits = list(TRANSCRIPT_RE.finditer(prompt or ""))
+    if not hits:
+        return None
+    text = prompt[hits[-1].end():].strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        text = text[1:-1].strip()
+    return text or None
 
 
 def route_line(row: dict) -> str:
     route, session, text = row["route"], row["session"], row["text"] or ""
     head = f"[stoiclife route #{row['id']}] "
+    if route_entry.is_voice(text):  # transcription failed: never save the placeholder
+        return (head + "VOICE NOT TRANSCRIBED. He sent a voice note that couldn't be transcribed. "
+                "Don't save anything; tell him in one line and ask him to type it or send it again.")
     if route == "entry":
         head += (f"ENTRY session={session} source={row['source']}. Save the message below as his "
                  f"{session} entry (AGENTS.md §1), using exactly this text.")
@@ -512,6 +533,14 @@ def handle_inject(req: dict, conn=None, now: datetime | None = None) -> dict:
         return {"prependContext": "[stoiclife route] NONE recorded. Treat his message as conversation "
                                   "(AGENTS.md §3); if it looks like a journal entry, suggest /journal."}
     r = dict(zip(cols, row))
+    if route_entry.is_voice(r["text"] or ""):
+        spoken = transcript_from(str(req.get("prompt") or ""))
+        if spoken:
+            r["text"] = spoken
+            with conn:
+                conn.execute("UPDATE route_events SET text = ? WHERE id = ?", (spoken, r["id"]))
+        tg.log("INFO" if spoken else "WARNING",
+               f"sc_dispatch: route #{r['id']} voice note {'transcript ' + str(len(spoken)) + ' chars' if spoken else 'has NO transcript'}")
     if r["route"] == "clarify":
         c = clarify.for_route(conn, r["id"])
         r["event_id"] = c["event_id"] if c else None

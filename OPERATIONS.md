@@ -61,6 +61,15 @@ Fitbit 07:00 / 10:00 failure alerts go to **both** WhatsApp and the coach bot (`
 `cp ~/.openclaw/openclaw.json.pre-feat07-20261007-222449 ~/.openclaw/openclaw.json && systemctl --user restart openclaw-gateway && sleep 20 && systemctl --user is-active openclaw-gateway`
 Then check the journal shows WhatsApp + both Telegram providers starting. This removes the plugin from `plugins.allow`/`load.paths` and the coach's `inlineButtons: dm`. The new tables are additive and harmless to leave in place; the DB backup is `stoic_journal.db.bak-mig001-20261007-222424`.
 
+### Voice journal entries (since 2026-10-09)
+
+Send a voice note to the coach bot; it routes exactly like typed text, with `route_events.source = voice`.
+- **Transcription:** OpenClaw `tools.media.audio` in `~/.openclaw/openclaw.json`. Google `gemini-2.5-flash` (existing `GEMINI_API_KEY`), scoped to `rawKeyPrefix: agent:coach:` (no other agent or channel transcribes), with `echoTranscript` on, so he sees `📝 "…"` before the reply. Config backup: `openclaw.json.pre-voice-20261009-221142`.
+- **Order of events:** OpenClaw transcribes *after* `before_dispatch`, so `route_entry.decide` only sees `<media:audio>`. It routes on everything except the text, never treats it as a "Tell me more" note, and turns a late one into `ask_text` instead of a hold (a hold never reaches the coach, so it would never be transcribed). `sc_dispatch.handle_inject` (`before_prompt_build`, which now passes `event.prompt`) takes the `[Audio transcript …]` line from the prompt, puts it in the route line and `route_events.text`. With no transcript, the route line is `VOICE NOT TRANSCRIBED` (save nothing, ask him to retype).
+- **Spoken mood:** `save_entry.parse_manual_mood` also reads number words (`Mood seven.`). At the start of the entry a word needs punctuation after it (`Mood one of those days` stays text).
+- **Off switch:** set `tools.media.audio.enabled` to false, then restart and check `is-active`. Voice notes then reach the coach as `<media:audio>` with no transcript, so the coach asks him to type it.
+- **Tests:** `tests/test_voice.py`, number words in `tests/test_manual_mood.py`.
+
 ### Rollback to WhatsApp
 
 1. `echo whatsapp > ~/.openclaw/stoic/coaching-channel`

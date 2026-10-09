@@ -150,13 +150,15 @@ export default {
       return; // not handled: the message goes to the coach as usual
     });
 
-    api.on("before_prompt_build", async (_event, ctx) => {
+    api.on("before_prompt_build", async (event, ctx) => {
       if (ctx?.agentId !== "coach" || ctx?.trigger === "cron" || ctx?.trigger === "heartbeat") return;
       try {
         const out = await runDispatch({
           kind: "inject",
           sessionKey: ctx.sessionKey,
           chatId: ctx.chatId ?? ctx.channelId,
+          // voice notes: the transcript only exists here (OpenClaw transcribes after before_dispatch)
+          prompt: typeof event?.prompt === "string" ? event.prompt : "",
         });
         if (out?.prependContext) return { prependContext: out.prependContext };
       } catch (e) {

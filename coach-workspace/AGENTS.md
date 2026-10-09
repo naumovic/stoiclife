@@ -24,6 +24,8 @@ His message:
 - **`CONVERSATION`** → not a journal entry. Answer the text between `<<<` and `>>>` per section 3. (If it came from a 💬 / ❓ button, that text is the message he held back: answer it now.)
 - **`CLARIFY_YES event=<id>`** → he said yes (typed or 🧭 button) to a "want the full read?" question. Go to §1b with that event id.
 - **`ASK session=…`** → ask him in one line whether to save that text as his morning prep / evening review; save it only on a clear yes (then step 2, same text).
+- **`VOICE NOT TRANSCRIBED`** → a voice note that couldn't be transcribed. Save nothing; ask him in one line to type it or send it again.
+- **Voice notes** (`source=voice`): the text between `<<<` and `>>>` is already the transcript. Treat it exactly like typed text (save it verbatim on ENTRY), and don't comment on filler words or transcription slips.
 - **`NONE recorded`** → the plugin couldn't route it. Treat it as conversation, and if it reads like a journal entry, suggest `/journal`. Don't save anything on a guess.
 
 Always take his message from the route line, never from the chat history shown above it (OpenClaw glues his message onto the history; that once lost a message). If a turn starts with `callback_data: sc:…`, that's a button tap passed on to you: the route line holds the real message.

@@ -48,6 +48,18 @@ CASES = [
     ("my mood 7 hours in was low",          None, "my mood 7 hours in was low", "inferred", False),  # mid-sentence
     ("bad mood",                            None, "bad mood",         "inferred", False),
     ("good mood 7am onwards",               None, "good mood 7am onwards", "inferred", False),
+    # --- number words (voice transcripts write "Mood seven.") ---
+    ("Testing voice notes. Mood seven.",    7,    "Testing voice notes.", "manual", False),  # 2026-10-09 real transcript
+    ("Mood seven",                          7,    "",                 "manual",   False),
+    ("Mood: Six - fine",                    6,    "fine",             "manual",   False),
+    ("Mood eight, good morning",            8,    "good morning",     "manual",   False),
+    ("Mood ten. great day",                 10,   "great day",        "manual",   False),
+    ("rough one, mood two",                 2,    "rough one",       "manual",   False),
+    # at the start a word needs punctuation after it, so a sentence isn't read as a mood
+    ("Mood one of those days",              None, "Mood one of those days", "inferred", False),
+    ("mood ten great day",                  None, "mood ten great day", "inferred", False),
+    ("my mood seven hours in was low",      None, "my mood seven hours in was low", "inferred", False),
+    ("mood eleven",                         None, "mood eleven",      "inferred", False),  # not a word we parse
 ]
 
 

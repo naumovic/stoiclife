@@ -19,6 +19,9 @@ coach agent is involved. Priority:
                    → hold [📝 Save as <session> prep] [💬 Just chatting] (D45)
   7. otherwise → conversation
 
+Voice notes arrive as `<media:audio>` (transcribed later): never a note (3); past the
+window (6) → ask_text, since a hold never reaches the coach and so is never transcribed.
+
 `decide()` is pure apart from reading the DB/state; it never sends or writes.
 Holds live in state.json (`holds`, one slot per chat, D44).
 """
@@ -37,6 +40,13 @@ HOLD_CB_RE = re.compile(r"^callback_data:\s*sc:hold:([ec]):(\d+)\s*$")
 CLAR_CB_RE = re.compile(r"^callback_data:\s*sc:clar:(\d+):y\s*$")
 NOTE_KINDS = re.compile(r"^fb_more:[rt]\d+$")  # MIN-130: check-in notes removed
 WRITE_RE = re.compile(r"^write:(morning|evening)$")
+# Voice notes: OpenClaw transcribes *after* before_dispatch, so the router only sees this
+# placeholder; sc_dispatch.handle_inject swaps in the transcript from the prompt.
+VOICE_PLACEHOLDER = "<media:audio>"
+
+
+def is_voice(text: str) -> bool:
+    return text.strip() == VOICE_PLACEHOLDER
 
 
 def strip_prefix(text: str) -> tuple[str | None, str]:
@@ -97,7 +107,8 @@ def decide(conn, *, chat_id: str, text: str, reply_to_id=None, now: datetime | N
     # 3. pending Tell me more (one pending slot, D36)
     pending = tg.get_pending(chat_id, now=now, path=state_path)
     pkind = (pending or {}).get("kind") or ""
-    if NOTE_KINDS.match(pkind) and text.strip():
+    # a voice note is never a note: notes are saved here, before any transcript exists
+    if NOTE_KINDS.match(pkind) and text.strip() and not is_voice(text):
         return {"route": "note", "session": None, "source": "note", "text": text, "note_kind": pkind}
 
 
@@ -124,6 +135,8 @@ def decide(conn, *, chat_id: str, text: str, reply_to_id=None, now: datetime | N
             if is_question(text):
                 return {"route": "hold", "source": "window", "hold_kind": "question", **base}
             return {"route": "entry", "source": "window", **base}
+        if is_voice(text):  # a hold never reaches the coach, so it would never be transcribed
+            return {"route": "ask_text", "source": "late", **base}
         return {"route": "hold", "source": "late", "hold_kind": "late", **base}
 
     # 7.
