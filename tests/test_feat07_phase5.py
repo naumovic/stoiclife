@@ -129,6 +129,28 @@ u = upd()
 check("day complete with action + event id", u["status"] == "complete" and u["synced"] == 1
       and u["action"] == "SILENT" and u["event_id"] == 77 and u["escalation"] == "none", dict(u))
 
+# --- MIN-135: --data-line for the evening review ------------------------------------------------
+import contextlib, io  # noqa: E401,E402
+
+
+def data_line_out():
+    buf = io.StringIO()
+    n = len(sends())
+    with contextlib.redirect_stdout(buf):
+        rc = du.main(["--db", str(DB), "--data-line"])
+    return rc, buf.getvalue(), sends()[n:]
+
+
+saved_clock = CLOCK["now"]
+CLOCK["now"] = datetime(2026, 10, 8, 20, 30, tzinfo=TZ)
+rc, out, s = data_line_out()
+check("--data-line: the same 📊 line as 11:00, nothing sent", rc == 0 and s == [] and out.strip()
+      == "📊 Last night: 9h10 sleep · HRV 50 ms (+16% vs 7-day) · RHR 52 bpm", (rc, out, s))
+CLOCK["now"] = datetime(2026, 10, 20, 20, 30, tzinfo=TZ)
+rc, out, s = data_line_out()
+check("--data-line with no row: prints nothing, sends nothing", rc == 0 and out == "" and s == [], (rc, out, s))
+CLOCK["now"] = saved_clock
+
 
 def reset_day():
     with conn:

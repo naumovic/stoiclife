@@ -155,14 +155,23 @@ def main(argv=None) -> int:
     ap.add_argument("--retry", action="store_true", help="the 12:00 re-check (D54)")
     ap.add_argument("--dry-run", action="store_true", help="print what would happen; send/write nothing")
     ap.add_argument("--db", help="DB path (tests); default the live journal DB")
+    ap.add_argument("--data-line", action="store_true",
+                    help="MIN-135: print today's 📊 line (for the evening review) and exit; sends nothing")
     args = ap.parse_args(argv)
 
     cfg = load_config(REPO_DIR / "stoiclife_config.json")
-    chat_id = checkins.coach_config()["chat_id"]
     now = now_local()
     day = now.strftime("%Y-%m-%d")
     conn = tg.db_connect(args.db)
     conn.row_factory = __import__("sqlite3").Row
+
+    if args.data_line:
+        row = today_row(conn, day)
+        if row and any(row[k] is not None for k in ("sleep_duration_min", "hrv_rmssd_ms", "resting_hr_bpm")):
+            print(data_line(conn, cfg, row))
+        return 0
+
+    chat_id = checkins.coach_config()["chat_id"]
     existing = get_update(conn, chat_id, day)
 
     if args.retry:

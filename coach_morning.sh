@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Coach morning message: yesterday's health line + Stoic morning prep, for the Telegram coach bot.
+# Coach morning message: yesterday's HRV/RHR/steps line + Stoic morning prep, for the Telegram coach bot.
 # Run by the "Coach Morning (07:30)" command cron; stdout is delivered verbatim. Since FEAT-07
 # Phase 4 the message is sent by send_prompt.py (with buttons) and stdout is just NO_REPLY.
 #
@@ -24,15 +24,16 @@ TITLE="☀️ Morning prep · $(TZ="$EWOK_TZ" date '+%a %-d %b')"
 YLABEL=$(TZ="$EWOK_TZ" date -d yesterday '+%a')
 
 # --- HEALTH (Fitbit biometrics, yesterday's row: the wearable hasn't synced today yet) ---
+# No sleep here (MIN-135): yesterday's row holds the night before yesterday; last night's
+# sleep is in the 11:00 update and the evening review.
 YDAY=$(TZ="$EWOK_TZ" date -d yesterday '+%F')
 BIO=$(sqlite3 -separator '|' "$HOME/.openclaw/stoic/stoic_journal.db" \
-  "SELECT COALESCE(sleep_duration_min,''), COALESCE(hrv_rmssd_ms,''), COALESCE(resting_hr_bpm,''),
+  "SELECT COALESCE(hrv_rmssd_ms,''), COALESCE(resting_hr_bpm,''),
           COALESCE(steps,'')
    FROM biometrics WHERE date='${YDAY}';" 2>/dev/null || true)
 PARTS=()
 if [ -n "$BIO" ]; then
-  IFS='|' read -r SLEEP_MIN HRV RHR STEPS <<< "$BIO"
-  [ -n "$SLEEP_MIN" ] && PARTS+=("$((SLEEP_MIN / 60))h$(printf '%02d' $((SLEEP_MIN % 60))) sleep")
+  IFS='|' read -r HRV RHR STEPS <<< "$BIO"
   [ -n "$HRV" ] && PARTS+=("HRV ${HRV%.*} ms")
   [ -n "$RHR" ] && PARTS+=("RHR ${RHR} bpm")
   [ -n "$STEPS" ] && PARTS+=("$(printf "%'d" "$STEPS") steps")

@@ -16,9 +16,9 @@ Source: `cron_jobs` in `~/.openclaw/state/openclaw.sqlite`. All jobs announce to
 
 | Time | Job id | Kind | What it does |
 |---|---|---|---|
-| 07:30 daily | `73c880ac` | **command** | `coach_morning.sh` runs `set_prompt_state.py --session morning` (unless `STOICLIFE_SKIP_PROMPT_STATE=1`), then prints the Health Snapshot (**yesterday's** `biometrics` row) + `~/.openclaw/workspace/stoic/prompts/morning_prompt.txt` (Anticipation / Response / Dichotomy). |
+| 07:30 daily | `73c880ac` | **command** | `coach_morning.sh` runs `set_prompt_state.py --session morning` (unless `STOICLIFE_SKIP_PROMPT_STATE=1`), then prints the Health Snapshot (**yesterday's** `biometrics` row: HRV · RHR · steps, no sleep since MIN-135) + `~/.openclaw/workspace/stoic/prompts/morning_prompt.txt` (Anticipation / Response / Dichotomy). |
 | 11:00 daily | `700b6841` | agentTurn | Safety-Net: `stoiclife_run.py --session safety-net --channel telegram`. On SEND_FULL, the coach composes a message and records it with `record_coaching.py`, which the strict validator checks. Late-morning prep logic lives here (FEAT-05). |
-| 20:30 daily | `7e8a7edd` | **command** | `~/.openclaw/workspace/scripts/evening-prompt.sh` sets evening prompt state and prints the evening review prompt. |
+| 20:30 daily | `7e8a7edd` | **command** | `coach_evening.sh` (was `evening-prompt.sh`) sets evening prompt state and sends the evening review prompt, under the 11:00 update's `📊 Last night: sleep · HRV (vs 7-day) · RHR` line (`daily_update.py --data-line`, MIN-135). |
 | Sun 08:00 | `5dcb0e1a` | **command** | `weekly_review.py --section both --channel telegram` |
 
 Command payloads deliver **stdout verbatim** (no model turn). `NO_REPLY` stays silent. **So a command cron can't attach buttons through stdout.** To get buttons, the script has to send the message itself (`openclaw message send --channel telegram --account coach --target 8917837483 --presentation '<json>' --json`) and then print `NO_REPLY`.
