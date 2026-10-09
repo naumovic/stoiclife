@@ -152,11 +152,35 @@ def daily_updates(conn, a: str, b: str) -> dict:
     return {"days": len(rows), "status": count("status"), "escalation": count("escalation")}
 
 
+def mood_guess(conn, a: str, b: str) -> dict | None:
+    """MIN-136: your own mood (manual) vs the coach's guess (inferred_mood) on the same entry.
+    None when the column isn't there yet (db_init.py adds it)."""
+    try:
+        rows = conn.execute("SELECT session, mood_score, inferred_mood FROM journal_entries WHERE date BETWEEN ? "
+                            "AND ? AND mood_source = 'manual' AND mood_score IS NOT NULL "
+                            "AND inferred_mood IS NOT NULL", (a, b)).fetchall()
+    except sqlite3.OperationalError:
+        return None
+
+    def summarise(rs):
+        diffs = [r["inferred_mood"] - r["mood_score"] for r in rs]
+        n = len(diffs)
+        return {"pairs": n,
+                "mean_abs_diff": round(sum(abs(d) for d in diffs) / n, 2) if n else None,
+                "exact_pct": pct(sum(1 for d in diffs if d == 0), n),
+                "bias": round(sum(diffs) / n, 2) if n else None}
+    out = {"all": summarise(rows)}
+    for session in ("morning", "evening"):
+        out[session] = summarise([r for r in rows if r["session"] == session])
+    return out
+
+
 def collect(conn, a: str, b: str) -> dict:
     n_days = (date.fromisoformat(b) - date.fromisoformat(a)).days + 1
     return {"range": [a, b], "days": n_days, "prompts": prompts(conn, a, b),
             "checkins": checkins(conn, a, b, n_days), "feedback": feedback(conn, a, b),
-            "entries": entries(conn, a, b), "daily_updates": daily_updates(conn, a, b)}
+            "entries": entries(conn, a, b), "daily_updates": daily_updates(conn, a, b),
+            "mood_guess": mood_guess(conn, a, b)}
 
 
 def fmt(v, suffix="") -> str:
@@ -196,6 +220,14 @@ def render(m: dict) -> str:
     L += ["", f"6. Daily updates ({d['days']} days)",
           "  status: " + (", ".join(f"{k} {v}" for k, v in d["status"].items()) or "none"),
           "  escalation: " + (", ".join(f"{k} {v}" for k, v in d["escalation"].items()) or "none")]
+    g = m.get("mood_guess")
+    L += ["", "7. Mood: you vs coach (entries with your mood and the coach's guess; bias = coach − you)"]
+    if g is None:
+        L.append("  inferred_mood column missing (run db_init.py)")
+    else:
+        for k, s in g.items():
+            L.append(f"  {k:8} pairs {s['pairs']:3} · mean |diff| {fmt(s['mean_abs_diff'])} · "
+                     f"exact {fmt(s['exact_pct'], '%')} · bias {fmt(s['bias'])}")
     return "\n".join(L)
 
 

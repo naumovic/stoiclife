@@ -186,6 +186,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-08: FEAT-07 Phase 6 metrics merged and pushed.** `ux_metrics.py <from> <to> [--json]` (read-only) reports prompt completion/skip and median time to entry, check-in rates by source, feedback rate and 👍 share by kind/session/flagged, entries by input method, and daily-update outcomes. Tests 15/15. Self-test runs two weeks from 2026-10-08; legacy prefix removal only after a week of zero use.
 
+- **2026-10-09: MIN-136, evening mood check-in declined; the coach's guess is kept instead.** Mood stays one check-in a day (the morning's). The evening mood is the coach's inference, and the evening prompt now ends with "Add mood: N if you like." New `journal_entries.inferred_mood` (`db_init.py`), written by workspace `update_entry.py` on every entry, even next to a manual mood (previously only logged). Backfilled by `backfill_inferred_mood.py` (209 inferred = mood_score, 5 manual from `stoic.log`). `ux_metrics` section 7 reports you vs coach (pairs, mean |diff|, exact %, bias). Backup `stoic_journal.db.bak-min136-20261009-214356`. Tests `test_inferred_mood.py` 17/17, all suites green.
+
 ## Open questions for Mihajlo
 
 - (none open)

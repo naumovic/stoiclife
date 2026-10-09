@@ -81,6 +81,10 @@ COLUMN_MIGRATIONS = {
         # FEAT-06: Stoic module called inline (`module:emotions`), canonical
         # lowercase name from coach-workspace/STOIC-MODULES.md; NULL = none.
         ("module", "TEXT"),
+        # MIN-136: the agent's mood guess, stored on every entry (update_entry.py) even
+        # when mood_score is manual, so guesses can be checked against the user's own.
+        # Backfilled by backfill_inferred_mood.py.
+        ("inferred_mood", "INTEGER"),
     ],
     # FEAT-01 Part A: self-computed nightly sleep score (0-100), NULL when a
     # night lacks stage data. Usually already present on the live DB.

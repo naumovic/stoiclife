@@ -25,5 +25,8 @@ PROMPTS=$(sed '1{/Evening Review/d}' "$HOME/.openclaw/workspace/stoic/prompts/ev
 OUT="$TITLE"
 [ -n "$HEALTH" ] && OUT+=$'\n'"$HEALTH"
 OUT+=$'\n\n'"$PROMPTS"$'\n\n'"Just type below to journal ↓"
+# MIN-136: no evening mood step (one check-in a day, the morning's); the coach infers the
+# evening mood unless the entry starts or ends with `mood N` (save_entry.py, FEAT-03).
+OUT+=$'\n'"Add mood: N if you like."
 
 printf '%s' "$OUT" | python3 "$HOME/projects/stoiclife/send_prompt.py" --session evening || echo "$OUT"
