@@ -188,6 +188,8 @@ Rule: update this file after every completed step and commit it with the code. S
 
 - **2026-10-09: MIN-136, evening mood check-in declined; the coach's guess is kept instead.** Mood stays one check-in a day (the morning's). The evening mood is the coach's inference, and the evening prompt now ends with "Add mood: N if you like." New `journal_entries.inferred_mood` (`db_init.py`), written by workspace `update_entry.py` on every entry, even next to a manual mood (previously only logged). Backfilled by `backfill_inferred_mood.py` (209 inferred = mood_score, 5 manual from `stoic.log`). `ux_metrics` section 7 reports you vs coach (pairs, mean |diff|, exact %, bias). Backup `stoic_journal.db.bak-min136-20261009-214356`. Tests `test_inferred_mood.py` 17/17, all suites green.
 
+- **2026-10-09: MIN-137, bold headings in the coach's morning/evening prompts.** `channel_fmt.bold_headings` bolds `Label:` prefixes and short colon-free heading lines; the coach scripts apply it at send time, and the shared prompt files are untouched (WhatsApp rollback). Tests 30/30, all suites green.
+
 ## Open questions for Mihajlo
 
 - (none open)

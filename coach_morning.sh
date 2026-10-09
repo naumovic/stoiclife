@@ -45,6 +45,8 @@ fi
 
 # The prompt file's first line is its own title ("🌅 Morning Prep"); ours replaces it.
 PROMPTS=$(sed '1{/Morning Prep/d}' "$HOME/.openclaw/workspace/stoic/prompts/morning_prompt.txt" | sed '/./,$!d')
+# MIN-137: bold the section headings for Telegram (the file stays plain: WhatsApp rollback uses it).
+PROMPTS=$(printf '%s' "$PROMPTS" | python3 "$HOME/projects/stoiclife/channel_fmt.py" headings telegram 2>/dev/null || printf '%s' "$PROMPTS")
 
 OUT="$TITLE"
 [ -n "$HEALTH" ] && OUT+=$'\n'"$HEALTH"

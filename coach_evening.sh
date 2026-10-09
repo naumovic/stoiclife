@@ -22,6 +22,8 @@ TITLE="🌙 Evening review · $(TZ="$EWOK_TZ" date '+%a %-d %b')"
 HEALTH=$(cd "$HOME/projects/stoiclife" && timeout 15 python3 daily_update.py --data-line 2>/dev/null || true)
 # The prompt file's first line is its own title ("🌙 Evening Review"); ours replaces it.
 PROMPTS=$(sed '1{/Evening Review/d}' "$HOME/.openclaw/workspace/stoic/prompts/evening_prompt.txt" | sed '/./,$!d')
+# MIN-137: bold the section headings for Telegram (the file stays plain: WhatsApp rollback uses it).
+PROMPTS=$(printf '%s' "$PROMPTS" | python3 "$HOME/projects/stoiclife/channel_fmt.py" headings telegram 2>/dev/null || printf '%s' "$PROMPTS")
 OUT="$TITLE"
 [ -n "$HEALTH" ] && OUT+=$'\n'"$HEALTH"
 OUT+=$'\n\n'"$PROMPTS"$'\n\n'"Just type below to journal ↓"

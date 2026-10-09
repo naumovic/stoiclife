@@ -42,3 +42,23 @@ def render(text: str, channel: str) -> str:
     if channel == "telegram":
         return _WA_BOLD.sub(r"**\1**", text)
     return text
+
+
+# MIN-137: section headings in the morning/evening prompt files (shared with the WhatsApp
+# rollback scripts, so the files stay plain and the coach scripts bold at send time).
+# "1. Anticipation: …" / "The Wins: …" -> bold label; a short colon-free line such as
+# "🧠 The Mogi Brain Check" is a heading on its own.
+_LABEL = re.compile(r"^(\d+\.\s+)?([A-Z][^:\n*?]{0,40}):(?=\s)", re.M)
+_HEADING = re.compile(r"^([^\w\s*]+\s+)?([A-Z][^:\n*?.]{0,40})$", re.M)
+
+
+def bold_headings(text: str, channel: str) -> str:
+    text = _LABEL.sub(lambda m: (m.group(1) or "") + bold(m.group(2) + ":", channel), text)
+    return _HEADING.sub(lambda m: (m.group(1) or "") + bold(m.group(2), channel), text)
+
+
+if __name__ == "__main__":  # printf '%s' "$PROMPTS" | python3 channel_fmt.py headings telegram
+    import sys
+    if len(sys.argv) != 3 or sys.argv[1] != "headings":
+        sys.exit("usage: channel_fmt.py headings <whatsapp|telegram>  (text on stdin)")
+    sys.stdout.write(bold_headings(sys.stdin.read(), resolve(sys.argv[2])))

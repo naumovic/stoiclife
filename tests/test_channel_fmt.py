@@ -37,6 +37,22 @@ RENDER_CASES = [
      "🧭 **stoiclife — weekly review**"),
 ]
 
+# MIN-137: prompt section headings (label, text, channel, expected)
+HEADING_CASES = [
+    ("numbered label", "1. Anticipation: What challenges?", "telegram", "1. **Anticipation:** What challenges?"),
+    ("multi-word label", "3. Dichotomy Focus: one thing", "telegram", "3. **Dichotomy Focus:** one thing"),
+    ("plain label", "The Wins: What did you do well today?", "telegram", "**The Wins:** What did you do well today?"),
+    ("label with a dot", "Amygdala vs. Prefrontal Cortex: Did you", "telegram",
+     "**Amygdala vs. Prefrontal Cortex:** Did you"),
+    ("emoji heading line", "🧠 The Mogi Brain Check", "telegram", "🧠 **The Mogi Brain Check**"),
+    ("whatsapp uses single asterisks", "The Lessons: Where", "whatsapp", "*The Lessons:* Where"),
+    ("only the first colon", "Response: How will you: respond", "telegram", "**Response:** How will you: respond"),
+    ("a question is not a heading", "Were you able to?", "telegram", "Were you able to?"),
+    ("a time is not a label", "Lights out by 22:00 tonight", "telegram", "Lights out by 22:00 tonight"),
+    ("already bold left alone", "**The Wins:** x", "telegram", "**The Wins:** x"),
+    ("blank lines kept", "The Wins: a\n\nThe Lessons: b", "telegram", "**The Wins:** a\n\n**The Lessons:** b"),
+]
+
 # (label, text, channel, expected_ok)
 VALIDATE_CASES = [
     ("whatsapp message on whatsapp", WA_MSG, "whatsapp", True),
@@ -72,6 +88,12 @@ def run() -> int:
     for label, text, channel, expected in RENDER_CASES:
         got = channel_fmt.render(text, channel)
         failures += check(label, got == expected, repr(got))
+        total += 1
+
+    print()
+    for label, text, channel, expected in HEADING_CASES:
+        got = channel_fmt.bold_headings(text, channel)
+        failures += check(f"headings: {label}", got == expected, repr(got))
         total += 1
 
     print()
